@@ -1,0 +1,14 @@
+# Docker Compose V2 (no top-level "version:" key needed)
+services:
+  tts-bot:
+    build: .
+    container_name: discord-cf-tts-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /app/data
+    volumes:
+      # Persists the per-guild TTS channel config and the daily usage counter.
+      # Create the folder first so it is owned by your user:  mkdir -p ./data
+      - ./data:/app/data
+    # The bot only makes outbound connections — no ports need to be published.
