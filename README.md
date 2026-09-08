@@ -119,9 +119,38 @@ npm start
 화이트리스트에 없는 특수문자·기호 → 공백 처리 후 공백 정리 및 길이 제한.
 스티커 · 이미지 · GIF 등 첨부는 본문에 텍스트가 없으면 그대로 무시됩니다.
 
+## 문제 해결
+
+### 특정 언어가 소리가 안 나올 때 (특히 한국어)
+
+Cloudflare가 호스팅하는 `@cf/myshell-ai/melotts` 는 **영어 외 언어에서 불안정**합니다.
+스페인어는 `8002 Invalid input` 오류, 한국어는 빈 오디오/발음 깨짐이 보고되어 있고
+Cloudflare 문서 이슈에서 미해결 상태입니다.
+(<https://github.com/cloudflare/cloudflare-docs/issues/23308>)
+
+먼저 실제 응답을 확인하세요:
+
+```bash
+# 컨테이너 안에서 모델을 직접 호출해 결과를 저장
+docker compose exec tts-bot node src/probe.js "안녕하세요 테스트입니다" kr
+docker compose exec tts-bot node src/probe.js "hello world" en
+# 저장된 파일을 호스트로 복사해서 재생
+docker compose cp tts-bot:/tmp/probe-kr.mp3 ./
+```
+
+`LOG_LEVEL=debug` 로 두면 매 요청의 `status / content-type / bytes / format` 이 로그에 남고,
+응답이 800바이트 미만이면 `WARN` 이 찍힙니다.
+
+대응 방법:
+
+- **`CF_TTS_MODEL` 을 다른 모델로 교체** — 현재 Cloudflare TTS는 `@cf/deepgram/aura-1`
+  (영어), `@cf/deepgram/aura-2-en`, `@cf/deepgram/aura-2-es` 뿐이라 한국어 대안은 없음.
+- **외부 TTS로 전환** (예: Google Cloud TTS, ElevenLabs) — `src/tts/cloudflare.js`
+  자리에 다른 provider 구현을 넣으면 됨. 무료 한도는 아니게 됨.
+- melotts가 한국어를 고칠 때까지 **영어 위주로 사용**.
+
 ## 참고
 
-- `melotts` 의 `lang` 값(`kr`/`jp`/`zh`/`en`)이 맞지 않으면 모델 카드를 확인하세요.
-  코드에서는 `src/tts/cloudflare.js` 의 `LANG_MAP` 에서 조정합니다.
+- `melotts` 의 `lang` 매핑은 `src/tts/cloudflare.js` 의 `LANG_MAP` 에서 조정합니다.
 - 설정과 일일 사용량은 `store.json` 에 저장됩니다 (Docker: named volume `tts-data`,
   로컬: `DATA_DIR`). 내용 확인: `docker compose exec tts-bot cat /app/data/store.json`
