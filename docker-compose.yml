@@ -9,6 +9,10 @@ services:
       DATA_DIR: /app/data
     volumes:
       # Persists the per-guild TTS channel config and the daily usage counter.
-      # Create the folder first so it is owned by your user:  mkdir -p ./data
-      - ./data:/app/data
+      # A named volume avoids host/container UID permission mismatches.
+      # Inspect it with:  docker compose exec tts-bot cat /app/data/store.json
+      - tts-data:/app/data
     # The bot only makes outbound connections — no ports need to be published.
+
+volumes:
+  tts-data:

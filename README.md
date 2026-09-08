@@ -39,8 +39,10 @@
 ```bash
 cp .env.example .env
 # .env 를 열어 값 채우기
-mkdir -p data          # 설정/사용량 파일이 저장되는 폴더 (권한 문제 방지용으로 미리 생성)
 ```
+
+설정/사용량 파일(`store.json`)은 Docker named volume `tts-data` 에 저장됩니다.
+로컬(비-Docker) 실행 시에는 `DATA_DIR`(기본 `./data`) 경로에 저장됩니다.
 
 주요 환경 변수:
 
@@ -121,4 +123,5 @@ npm start
 
 - `melotts` 의 `lang` 값(`kr`/`jp`/`zh`/`en`)이 맞지 않으면 모델 카드를 확인하세요.
   코드에서는 `src/tts/cloudflare.js` 의 `LANG_MAP` 에서 조정합니다.
-- 설정과 일일 사용량은 `data/store.json` 에 저장됩니다.
+- 설정과 일일 사용량은 `store.json` 에 저장됩니다 (Docker: named volume `tts-data`,
+  로컬: `DATA_DIR`). 내용 확인: `docker compose exec tts-bot cat /app/data/store.json`
