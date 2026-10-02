@@ -19,18 +19,27 @@ const client = new Client({
 client.once(Events.ClientReady, async (readyClient) => {
   logger.info(`[bot] logged in as ${readyClient.user.tag}`);
   try {
-    await clearGlobalCommands();
+    const removed = await clearGlobalCommands();
+    if (removed > 0) logger.info(`[bot] removed ${removed} stale global command(s)`);
   } catch (err) {
     logger.warn(`[bot] clearing global commands failed: ${err.message}`);
   }
+  let registered = 0;
   for (const [guildId, guild] of readyClient.guilds.cache) {
     try {
       await registerForGuild(guildId);
+      registered++;
       logger.debug(`[bot] registered commands for ${guild.name} (${guildId})`);
     } catch (err) {
-      logger.warn(`[bot] command registration failed for ${guildId}: ${err.message}`);
+      logger.warn(
+        `[bot] command registration failed for ${guild.name} (${guildId}): ` +
+          `[${err.code ?? err.status ?? '?'}] ${err.message}`,
+      );
     }
   }
+  logger.info(
+    `[bot] slash commands registered in ${registered}/${readyClient.guilds.cache.size} guild(s)`,
+  );
   logger.info(`[bot] ready in ${readyClient.guilds.cache.size} guild(s)`);
 });
 

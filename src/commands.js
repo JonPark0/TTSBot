@@ -2,6 +2,7 @@ import {
   SlashCommandBuilder,
   PermissionFlagsBits,
   ChannelType,
+  ApplicationCommandType,
   MessageFlags,
   REST,
   Routes,
@@ -41,9 +42,17 @@ export async function registerForGuild(guildId) {
 
 // Removes global commands left over from the old `npm run register` helper, which would
 // otherwise make /tts-channel show up twice (global + guild) in the Discord menu.
+// Deletes one by one rather than bulk-overwriting with [], because an app with Activities
+// enabled has an Entry Point ("Launch") command that a bulk overwrite can't remove
+// (Discord error 50240); that command is left alone. Returns the number removed.
 export async function clearGlobalCommands() {
   const rest = new REST({ version: '10' }).setToken(config.discordToken);
-  await rest.put(Routes.applicationCommands(config.discordClientId), { body: [] });
+  const existing = await rest.get(Routes.applicationCommands(config.discordClientId));
+  const stale = existing.filter((cmd) => cmd.type !== ApplicationCommandType.PrimaryEntryPoint);
+  for (const cmd of stale) {
+    await rest.delete(Routes.applicationCommand(config.discordClientId, cmd.id));
+  }
+  return stale.length;
 }
 
 export async function handleInteraction(interaction) {
