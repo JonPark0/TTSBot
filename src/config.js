@@ -21,6 +21,12 @@ function number(name, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+// Playback gain multiplier: must be a positive finite number, capped to avoid ear-splitting typos.
+function gain(name, fallback) {
+  const value = number(name, fallback);
+  return value > 0 ? Math.min(value, 10) : fallback;
+}
+
 function boolean(name, fallback) {
   const value = process.env[name];
   if (value === undefined || value === '') return fallback;
@@ -45,6 +51,14 @@ export const config = {
   idleTimeoutMs: number('TTS_IDLE_TIMEOUT_MS', 300000),
   readCustomEmojiNames: boolean('TTS_READ_CUSTOM_EMOJI_NAMES', false),
   dailyCharLimit: number('TTS_DAILY_CHAR_LIMIT', 100000),
+  // Per-language playback gain. MeloTTS renders Chinese ~4-5x quieter (RMS ~0.02)
+  // than Korean/Japanese/English (RMS ~0.07-0.14), so zh is boosted by default.
+  langGain: {
+    kr: gain('TTS_GAIN_KR', 1),
+    jp: gain('TTS_GAIN_JP', 1),
+    zh: gain('TTS_GAIN_ZH', 4),
+    en: gain('TTS_GAIN_EN', 1),
+  },
 
   // Runtime
   dataDir: optional('DATA_DIR', './data'),

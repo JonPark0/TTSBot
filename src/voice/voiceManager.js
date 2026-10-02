@@ -84,9 +84,13 @@ class GuildVoice {
 
       await this.#ensureConnection(voiceChannel);
 
+      // Inline volume costs an extra PCM transform per frame, so only enable it when needed.
+      const gain = config.langGain[lang] ?? 1;
       const resource = createAudioResource(Readable.from(audio), {
         inputType: StreamType.Arbitrary,
+        inlineVolume: gain !== 1,
       });
+      resource.volume?.setVolume(gain);
       this.player.play(resource);
       // The 'Idle' / 'error' handlers advance the queue from here.
     } catch (err) {
