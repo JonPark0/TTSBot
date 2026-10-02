@@ -5,7 +5,7 @@ import { initStore, flushStore, getTtsChannel, canSpend } from './store.js';
 import { sanitize } from './text/sanitize.js';
 import { detectLang } from './text/langDetect.js';
 import { getGuildVoice, destroyAll } from './voice/voiceManager.js';
-import { registerForGuild, handleInteraction } from './commands.js';
+import { registerForGuild, clearGlobalCommands, handleInteraction } from './commands.js';
 
 const client = new Client({
   intents: [
@@ -18,6 +18,11 @@ const client = new Client({
 
 client.once(Events.ClientReady, async (readyClient) => {
   logger.info(`[bot] logged in as ${readyClient.user.tag}`);
+  try {
+    await clearGlobalCommands();
+  } catch (err) {
+    logger.warn(`[bot] clearing global commands failed: ${err.message}`);
+  }
   for (const [guildId, guild] of readyClient.guilds.cache) {
     try {
       await registerForGuild(guildId);

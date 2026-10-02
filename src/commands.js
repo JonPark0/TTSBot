@@ -32,14 +32,18 @@ export const commands = [
     .toJSON(),
 ];
 
+// Commands are registered per guild only (on startup and on guild join): guild command
+// updates show up in Discord immediately, so a restart is all it takes to apply changes.
 export async function registerForGuild(guildId) {
   const rest = new REST({ version: '10' }).setToken(config.discordToken);
   await rest.put(Routes.applicationGuildCommands(config.discordClientId, guildId), { body: commands });
 }
 
-export async function registerGlobal() {
+// Removes global commands left over from the old `npm run register` helper, which would
+// otherwise make /tts-channel show up twice (global + guild) in the Discord menu.
+export async function clearGlobalCommands() {
   const rest = new REST({ version: '10' }).setToken(config.discordToken);
-  await rest.put(Routes.applicationCommands(config.discordClientId), { body: commands });
+  await rest.put(Routes.applicationCommands(config.discordClientId), { body: [] });
 }
 
 export async function handleInteraction(interaction) {
