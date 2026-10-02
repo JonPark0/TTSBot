@@ -101,7 +101,14 @@ export async function handleInteraction(interaction) {
       config.dailyCharLimit > 0
         ? `• 오늘 사용량(UTC): ${usage.chars.toLocaleString()} / ${usage.limit.toLocaleString()}자`
         : '• 일일 사용량 제한: 없음',
-      `• 모델: \`${config.cfTtsModel}\``,
+      ...(config.ttsProvider === 'baze'
+        ? [
+            `• 음성 합성: Gemini \`${config.bazeTtsModel}\` (목소리 ${config.bazeTtsVoice}) → 실패 시 \`${config.cfTtsModel}\``,
+            config.bazeDailyCreditLimit > 0
+              ? `• 오늘 Gemini 크레딧(UTC): ${usage.credits.toFixed(1)} / ${usage.creditLimit.toLocaleString()}`
+              : `• 오늘 Gemini 크레딧(UTC): ${usage.credits.toFixed(1)} (제한 없음)`,
+          ]
+        : [`• 음성 합성: \`${config.cfTtsModel}\``]),
     ];
     return interaction.reply({ content: lines.join('\n'), flags: MessageFlags.Ephemeral });
   }
