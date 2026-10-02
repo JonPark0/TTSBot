@@ -19,7 +19,8 @@ const client = new Client({
 client.once(Events.ClientReady, async (readyClient) => {
   logger.info(`[bot] logged in as ${readyClient.user.tag}`);
   try {
-    await clearGlobalCommands();
+    const removed = await clearGlobalCommands();
+    if (removed > 0) logger.info(`[bot] removed ${removed} stale global command(s)`);
   } catch (err) {
     logger.warn(`[bot] clearing global commands failed: ${err.message}`);
   }
