@@ -1,10 +1,20 @@
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 
+// The request body ({ prompt, lang }) and response handling below follow the MeloTTS
+// schema. Other Workers AI TTS models (e.g. @cf/deepgram/aura-*) take a different
+// body ({ text, speaker, ... }) and only speak English/Spanish, so they won't work here.
+const MELOTTS_MODEL = '@cf/myshell-ai/melotts';
+if (config.cfTtsModel !== MELOTTS_MODEL) {
+  logger.warn(
+    `[tts] CF_TTS_MODEL=${config.cfTtsModel} — this bot sends MeloTTS-style requests ` +
+      `({ prompt, lang }); requests will fail unless the model accepts the same schema`,
+  );
+}
+
 // Map our internal detector codes to the MeloTTS `lang` values Workers AI expects.
-// Upstream MeloTTS uses: EN, ES, FR, ZH, JP, KR (Cloudflare accepts them lower-cased).
-// NOTE: Cloudflare's hosted @cf/myshell-ai/melotts is known to be unreliable for
-// non-English input (see README troubleshooting). Adjust here if CF changes it.
+// Workers AI accepts: en, es, fr, jp, kr, zh (it rejects ISO codes like "ko" with error 8007).
+// Verified 2026-10-02: kr / jp / zh / en all produce intelligible speech.
 const LANG_MAP = {
   kr: 'kr',
   ko: 'kr',
@@ -23,7 +33,7 @@ function endpoint() {
   return `https://api.cloudflare.com/client/v4/accounts/${config.cfAccountId}/ai/run/${config.cfTtsModel}`;
 }
 
-function sniff(buffer) {
+export function sniff(buffer) {
   if (buffer.length >= 3 && buffer.toString('ascii', 0, 3) === 'ID3') return 'mp3(ID3)';
   if (buffer.length >= 2 && buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0) return 'mp3(frame)';
   if (buffer.length >= 4 && buffer.toString('ascii', 0, 4) === 'RIFF') return 'wav';
@@ -33,7 +43,8 @@ function sniff(buffer) {
 
 /**
  * Synthesize `text` in `lang` via Cloudflare Workers AI.
- * Returns a Buffer containing an audio file (MP3/WAV for MeloTTS).
+ * Returns a Buffer containing an audio file. MeloTTS currently returns a
+ * 44.1 kHz mono 16-bit WAV even though its schema says MP3; ffmpeg handles either.
  */
 export async function synthesize(text, lang) {
   const mapped = LANG_MAP[lang] || LANG_MAP[config.defaultLang] || 'en';
@@ -55,7 +66,7 @@ export async function synthesize(text, lang) {
   }
 
   let audio;
-  // MeloTTS returns JSON: { result: { audio: "<base64 mp3>" }, success: true }
+  // MeloTTS returns JSON: { result: { audio: "<base64 WAV>" }, success: true }
   if (contentType.includes('application/json')) {
     const json = await response.json();
     if (json.success === false) {

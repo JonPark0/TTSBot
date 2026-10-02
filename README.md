@@ -60,6 +60,8 @@ cp .env.example .env
 | `TTS_IDLE_TIMEOUT_MS` | `300000` | 읽을 게 없을 때 음성 채널에서 나가기까지의 시간 |
 | `TTS_READ_CUSTOM_EMOJI_NAMES` | `false` | 커스텀 이모지를 이름으로 읽을지 여부 |
 | `TTS_DAILY_CHAR_LIMIT` | `100000` | 봇 전체 일일 문자 수 상한 (0이면 비활성) |
+| `TTS_GAIN_KR` / `_JP` / `_EN` | `1` | 언어별 재생 음량 배율 (0 초과 10 이하) |
+| `TTS_GAIN_ZH` | `4` | 중국어 재생 음량 배율 (MeloTTS 중국어 출력이 4~5배 작음) |
 | `DATA_DIR` | `./data` | 설정/사용량 저장 경로 |
 | `LOG_LEVEL` | `info` | `error`/`warn`/`info`/`debug` |
 
@@ -121,33 +123,43 @@ npm start
 
 ## 문제 해결
 
-### 특정 언어가 소리가 안 나올 때 (특히 한국어)
+### 언어별 동작 현황 (2026-10-02 검증)
 
-Cloudflare가 호스팅하는 `@cf/myshell-ai/melotts` 는 **영어 외 언어에서 불안정**합니다.
-스페인어는 `8002 Invalid input` 오류, 한국어는 빈 오디오/발음 깨짐이 보고되어 있고
-Cloudflare 문서 이슈에서 미해결 상태입니다.
-(<https://github.com/cloudflare/cloudflare-docs/issues/23308>)
+`@cf/myshell-ai/melotts` 로 합성한 음성을 Whisper(`@cf/openai/whisper-large-v3-turbo`)로
+다시 받아써서 확인한 결과, **한국어·일본어·중국어·영어 모두 정상적으로 알아들을 수 있는
+음성**이 나옵니다. (과거 보고된 한국어 빈 오디오 문제는 현재 재현되지 않습니다.)
+
+- 응답 형식: 모델 스키마에는 MP3로 적혀 있지만 실제로는 **44.1kHz mono 16-bit WAV**
+  (base64)가 옵니다. ffmpeg가 형식을 자동 판별하므로 재생에는 문제없습니다.
+- 언어 코드: Workers AI는 `en`, `es`, `fr`, `jp`, `kr`, `zh` 만 받습니다
+  (`ko` 는 `8007 Unsupported language` 오류). 매핑은 `LANG_MAP` 에서 처리합니다.
+- **중국어 음량**: 중국어 출력은 다른 언어보다 4~5배 작게 나옵니다(RMS 약 0.02 vs 0.07~0.14).
+  그래서 `TTS_GAIN_ZH=4` 를 기본값으로 재생 시 증폭합니다. 다른 언어도 `TTS_GAIN_*` 로 조정 가능합니다.
+
+### 소리가 안 나거나 이상할 때
 
 먼저 실제 응답을 확인하세요:
 
 ```bash
-# 컨테이너 안에서 모델을 직접 호출해 결과를 저장
+# 컨테이너 안에서 모델을 직접 호출해 결과를 저장 (확장자는 응답 형식에 맞춰 결정됨)
 docker compose exec tts-bot node src/probe.js "안녕하세요 테스트입니다" kr
-docker compose exec tts-bot node src/probe.js "hello world" en
-# 저장된 파일을 호스트로 복사해서 재생
-docker compose cp tts-bot:/tmp/probe-kr.mp3 ./
+docker compose exec tts-bot node src/probe.js "你好，这是一个测试。" zh
+# 저장된 파일을 호스트로 복사해서 재생 (출력의 saved -> 경로 참고)
+docker compose cp tts-bot:/tmp/probe-kr.wav ./
 ```
 
 `LOG_LEVEL=debug` 로 두면 매 요청의 `status / content-type / bytes / format` 이 로그에 남고,
 응답이 800바이트 미만이면 `WARN` 이 찍힙니다.
 
-대응 방법:
+`cf` CLI가 있다면 봇 없이도 모델을 직접 호출할 수 있습니다:
 
-- **`CF_TTS_MODEL` 을 다른 모델로 교체** — 현재 Cloudflare TTS는 `@cf/deepgram/aura-1`
-  (영어), `@cf/deepgram/aura-2-en`, `@cf/deepgram/aura-2-es` 뿐이라 한국어 대안은 없음.
-- **외부 TTS로 전환** (예: Google Cloud TTS, ElevenLabs) — `src/tts/cloudflare.js`
-  자리에 다른 provider 구현을 넣으면 됨. 무료 한도는 아니게 됨.
-- melotts가 한국어를 고칠 때까지 **영어 위주로 사용**.
+```bash
+cf ai run @cf/myshell-ai/melotts --prompt "안녕하세요" --lang kr
+```
+
+참고: `CF_TTS_MODEL` 은 MeloTTS와 같은 요청 형식(`{ prompt, lang }`)을 쓰는 모델만 동작합니다.
+현재 Workers AI의 다른 TTS 모델(`@cf/deepgram/aura-*`)은 요청 형식이 다르고 영어/스페인어만
+지원하므로, 다른 모델로 설정하면 시작 시 경고가 출력됩니다.
 
 ## 참고
 
