@@ -11,7 +11,7 @@ import {
 } from '@discordjs/voice';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
-import { synthesize } from '../tts/cloudflare.js';
+import { synthesize } from '../tts/index.js';
 import { canSpend, addUsage } from '../store.js';
 
 /**
@@ -79,13 +79,15 @@ class GuildVoice {
         return this.#drain();
       }
 
-      const audio = await synthesize(text, lang);
+      const { audio, provider } = await synthesize(text, lang);
       addUsage(text.length);
 
       await this.#ensureConnection(voiceChannel);
 
+      // The per-language gains were measured on MeloTTS output (quiet Chinese); Gemini output
+      // already peaks near full scale and would clip if boosted, so it always plays at 1.
       // Inline volume costs an extra PCM transform per frame, so only enable it when needed.
-      const gain = config.langGain[lang] ?? 1;
+      const gain = provider === 'cloudflare' ? (config.langGain[lang] ?? 1) : 1;
       const resource = createAudioResource(Readable.from(audio), {
         inputType: StreamType.Arbitrary,
         inlineVolume: gain !== 1,

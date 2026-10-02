@@ -5,7 +5,8 @@ import { logger } from './logger.js';
 
 const FILE = path.join(config.dataDir, 'store.json');
 
-let state = { guilds: {}, usage: { date: today(), chars: 0 } };
+// usage.credits counts Gemini (BAZE) TTS credits; it shares the UTC-day reset with chars.
+let state = { guilds: {}, usage: emptyUsage() };
 let writeTimer = null;
 let canPersist = true;
 
@@ -13,10 +14,14 @@ function today() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
 }
 
+function emptyUsage(date = today()) {
+  return { date, chars: 0, credits: 0 };
+}
+
 function rollDate() {
   const current = today();
   if (state.usage.date !== current) {
-    state.usage = { date: current, chars: 0 };
+    state.usage = emptyUsage(current);
     scheduleWrite();
   }
 }
@@ -44,8 +49,12 @@ export async function initStore() {
       guilds: parsed.guilds && typeof parsed.guilds === 'object' ? parsed.guilds : {},
       usage:
         parsed.usage && typeof parsed.usage === 'object'
-          ? { date: String(parsed.usage.date || today()), chars: Number(parsed.usage.chars) || 0 }
-          : { date: today(), chars: 0 },
+          ? {
+              date: String(parsed.usage.date || today()),
+              chars: Number(parsed.usage.chars) || 0,
+              credits: Number(parsed.usage.credits) || 0, // absent in store.json from older versions
+            }
+          : emptyUsage(),
     };
     logger.info(`[store] loaded ${Object.keys(state.guilds).length} guild config(s) from ${FILE}`);
   } catch (err) {
@@ -93,9 +102,27 @@ export function addUsage(chars) {
   scheduleWrite();
 }
 
+export function canSpendCredits() {
+  rollDate();
+  if (!config.bazeDailyCreditLimit || config.bazeDailyCreditLimit <= 0) return true;
+  return state.usage.credits < config.bazeDailyCreditLimit;
+}
+
+export function addCredits(credits) {
+  rollDate();
+  state.usage.credits += credits;
+  scheduleWrite();
+}
+
 export function usageInfo() {
   rollDate();
-  return { date: state.usage.date, chars: state.usage.chars, limit: config.dailyCharLimit };
+  return {
+    date: state.usage.date,
+    chars: state.usage.chars,
+    limit: config.dailyCharLimit,
+    credits: state.usage.credits,
+    creditLimit: config.bazeDailyCreditLimit,
+  };
 }
 
 export async function flushStore() {
