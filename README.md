@@ -80,7 +80,7 @@ docker compose down
 
 ## 실행 (로컬, Docker 없이)
 
-- Node.js 20.9 이상, 그리고 **ffmpeg** 가 PATH에 있어야 합니다.
+- Node.js 24 이상, 그리고 **ffmpeg** 가 PATH에 있어야 합니다.
   (Windows: `winget install Gyan.FFmpeg`, macOS: `brew install ffmpeg`)
 
 ```bash
