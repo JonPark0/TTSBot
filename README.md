@@ -163,6 +163,9 @@ cf ai run @cf/myshell-ai/melotts --prompt "안녕하세요" --lang kr
 
 ## 참고
 
+- 슬래시 명령어는 봇이 시작할 때와 새 서버에 들어갈 때 **서버별로 자동 등록**됩니다.
+  명령어를 바꿨다면 `docker compose up -d --build` 로 재시작만 하면 바로 반영됩니다.
+  (예전에 전역으로 등록된 명령어가 있으면 시작 시 자동으로 지워 중복 표시를 막습니다.)
 - `melotts` 의 `lang` 매핑은 `src/tts/cloudflare.js` 의 `LANG_MAP` 에서 조정합니다.
 - 설정과 일일 사용량은 `store.json` 에 저장됩니다 (Docker: named volume `tts-data`,
   로컬: `DATA_DIR`). 내용 확인: `docker compose exec tts-bot cat /app/data/store.json`

@@ -7,7 +7,6 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "register": "node src/register.js",
     "probe": "node src/probe.js"
   },
   "engines": {
