@@ -1,21 +1,24 @@
 // Diagnostic: synthesize one message with the configured providers and save the result.
-//   docker compose exec tts-bot node src/probe.js "안녕하세요 테스트입니다" kr            # Gemini, MeloTTS fallback
-//   docker compose exec tts-bot node src/probe.js "안녕하세요 테스트입니다" kr baze       # Gemini only
-//   docker compose exec tts-bot node src/probe.js "你好，这是一个测试。" zh cloudflare  # MeloTTS only
+//   docker compose exec tts-bot node dist/probe.js "안녕하세요 테스트입니다" kr            # Gemini, MeloTTS fallback
+//   docker compose exec tts-bot node dist/probe.js "안녕하세요 테스트입니다" kr baze       # Gemini only
+//   docker compose exec tts-bot node dist/probe.js "你好，这是一个测试。" zh cloudflare  # MeloTTS only
+// Locally (without building first): node src/probe.ts "..." kr
 // The file extension follows the returned format (both providers produce WAV).
 // Then copy the file out:  docker compose cp tts-bot:/tmp/probe-kr.wav ./
 import { writeFileSync } from 'node:fs';
-import { config } from './config.js';
-import { initStore, usageInfo, flushStore } from './store.js';
-import { synthesize } from './tts/index.js';
-import { sniff } from './tts/cloudflare.js';
+import { config, type TtsProvider } from './config.ts';
+import { initStore, usageInfo, flushStore } from './store.ts';
+import { synthesize } from './tts/index.ts';
+import { sniff } from './tts/cloudflare.ts';
 
-const EXT = { 'mp3(ID3)': 'mp3', 'mp3(frame)': 'mp3', wav: 'wav', ogg: 'ogg' };
+const EXT: Record<string, string> = { 'mp3(ID3)': 'mp3', 'mp3(frame)': 'mp3', wav: 'wav', ogg: 'ogg' };
 
 const text = process.argv[2] || '안녕하세요. 테스트입니다.';
 const lang = process.argv[3] || config.defaultLang;
-const only = process.argv[4] && process.argv[4] !== 'auto' ? process.argv[4] : undefined;
-if (only && !['baze', 'cloudflare'].includes(only)) {
+const providerArg = process.argv[4];
+const only: TtsProvider | undefined =
+  providerArg === 'baze' || providerArg === 'cloudflare' ? providerArg : undefined;
+if (providerArg && providerArg !== 'auto' && !only) {
   console.error('provider must be one of: auto, baze, cloudflare');
   process.exit(1);
 }
@@ -42,7 +45,7 @@ try {
   console.log(`playback gain = ${gain} (applied at playback, not to the saved file)`);
   console.log(`saved -> ${out}`);
 } catch (err) {
-  console.error(`FAIL  ${err.message}`);
+  console.error(`FAIL  ${(err as Error).message}`);
   process.exitCode = 1;
 }
 await flushStore();

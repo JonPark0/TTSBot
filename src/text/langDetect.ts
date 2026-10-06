@@ -6,9 +6,9 @@ const RE_HANGUL = /[가-힣ᄀ-ᇿ㄰-㆏]/; // hangul syllables + jamo
 const RE_HAN = /[㐀-䶿一-鿿豈-﫿]/; // CJK ideographs
 const RE_LATIN = /[A-Za-z]/;
 
-export const SUPPORTED_LANGS = ['kr', 'jp', 'zh', 'en'];
+export const SUPPORTED_LANGS: readonly string[] = ['kr', 'jp', 'zh', 'en'];
 
-export function detectLang(text, fallback = 'kr') {
+export function detectLang(text: string, fallback = 'kr'): string {
   if (!text) return fallback;
   // Order matters: kana is unique to Japanese; hangul is unique to Korean.
   // Bare CJK ideographs (no kana/hangul) are treated as Chinese.

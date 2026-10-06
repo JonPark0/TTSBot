@@ -6,7 +6,7 @@ import path from 'node:path';
 
 export const BAZE_URL = 'https://baze.test/v1/gateway';
 
-export function setTestEnv(extra = {}) {
+export function setTestEnv(extra: Record<string, string> = {}) {
   Object.assign(process.env, {
     DISCORD_TOKEN: 'test',
     DISCORD_CLIENT_ID: 'test',
@@ -33,18 +33,29 @@ function fakeMeloJson() {
   return JSON.stringify({ result: { audio: wav.toString('base64') }, success: true, errors: [] });
 }
 
+export interface FetchState {
+  baze: 'ok' | 'json200' | 'network' | number;
+}
+
+export interface FetchCalls {
+  baze: number;
+  cloudflare: number;
+  bazeBodies: unknown[];
+  bazeAuth?: string;
+}
+
 /**
  * Install a fake fetch. `baze` decides the BAZE response per call:
  * 'ok' | an HTTP status number | 'json200' | 'network'.
  * Returns a `calls` record of which endpoints were hit.
  */
-export function installFetch(state) {
-  const calls = { baze: 0, cloudflare: 0, bazeBodies: [] };
+export function installFetch(state: FetchState): FetchCalls {
+  const calls: FetchCalls = { baze: 0, cloudflare: 0, bazeBodies: [] };
   globalThis.fetch = async (url, init) => {
     if (String(url).startsWith(BAZE_URL)) {
       calls.baze++;
-      calls.bazeBodies.push(JSON.parse(init.body));
-      calls.bazeAuth = init.headers.Authorization;
+      calls.bazeBodies.push(JSON.parse(String(init?.body)));
+      calls.bazeAuth = (init?.headers as Record<string, string>).Authorization;
       const mode = state.baze;
       if (mode === 'network') throw new TypeError('fetch failed');
       if (mode === 'json200') {

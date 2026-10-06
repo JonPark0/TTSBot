@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setTestEnv, installFetch, fakePcm } from './helpers.js';
+import { setTestEnv, installFetch, fakePcm, type FetchState } from './helpers.ts';
 
 setTestEnv({ BAZE_API_KEY: 'baze-test-key', BAZE_TTS_VOICE: 'Puck' });
-const { pcmToWav, creditsFor, synthesizeBaze, BazeError } = await import('../src/tts/baze.js');
-const { sniff } = await import('../src/tts/cloudflare.js');
+const { pcmToWav, creditsFor, synthesizeBaze, BazeError } = await import('../src/tts/baze.ts');
+const { sniff } = await import('../src/tts/cloudflare.ts');
 
 test('pcmToWav writes a 24 kHz mono 16-bit header that sniff() recognises', () => {
   const pcm = fakePcm(0.5);
@@ -30,7 +30,7 @@ test('creditsFor uses the per-model rates and charges unknown models the top rat
 });
 
 test('synthesizeBaze sends model/voice/text with the bearer key and returns WAV + credits', async () => {
-  const state = { baze: 'ok' };
+  const state: FetchState = { baze: 'ok' };
   const calls = installFetch(state);
   const { audio, credits } = await synthesizeBaze('안녕하세요');
   assert.equal(sniff(audio), 'wav');
@@ -44,7 +44,7 @@ test('synthesizeBaze sends model/voice/text with the bearer key and returns WAV 
 });
 
 test('synthesizeBaze throws BazeError with the HTTP status on failure', async () => {
-  const state = { baze: 429 };
+  const state: FetchState = { baze: 429 };
   installFetch(state);
   await assert.rejects(synthesizeBaze('x'), (err) => err instanceof BazeError && err.status === 429);
   state.baze = 'json200';

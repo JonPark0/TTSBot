@@ -1,17 +1,17 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { setTestEnv, installFetch } from './helpers.js';
+import { setTestEnv, installFetch, type FetchState } from './helpers.ts';
 
 // Each successful Gemini call in these tests costs 2.233 credits; a limit of 5 allows two.
 setTestEnv({ BAZE_API_KEY: 'baze-test-key', BAZE_DAILY_CREDIT_LIMIT: '5' });
 mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-03T01:00:00Z') });
 
-const { config } = await import('../src/config.js');
-const { initStore, usageInfo } = await import('../src/store.js');
-const { synthesize } = await import('../src/tts/index.js');
+const { config } = await import('../src/config.ts');
+const { initStore, usageInfo } = await import('../src/store.ts');
+const { synthesize } = await import('../src/tts/index.ts');
 await initStore();
 
-const state = { baze: 'ok' };
+const state: FetchState = { baze: 'ok' };
 const calls = installFetch(state);
 
 // The cases share module state (cooldown, credits), so they run in order.

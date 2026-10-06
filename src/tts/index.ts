@@ -1,8 +1,8 @@
-import { config } from '../config.js';
-import { logger } from '../logger.js';
-import { canSpendCredits, addCredits } from '../store.js';
-import { synthesize as synthesizeCloudflare } from './cloudflare.js';
-import { synthesizeBaze } from './baze.js';
+import { config, type TtsProvider } from '../config.ts';
+import { logger } from '../logger.ts';
+import { canSpendCredits, addCredits } from '../store.ts';
+import { synthesize as synthesizeCloudflare } from './cloudflare.ts';
+import { synthesizeBaze, type BazeError } from './baze.ts';
 
 // Provider chain: Gemini (BAZE) first when configured, Cloudflare MeloTTS as the fallback.
 // After a Gemini failure the bot stops trying it for a while instead of paying a failed
@@ -12,7 +12,7 @@ const AUTH_COOLDOWN_MS = 30 * 60 * 1000;
 const TRANSIENT_COOLDOWN_MS = 60 * 1000;
 
 let bazeCooldownUntil = 0;
-let budgetWarnedDate = null;
+let budgetWarnedDate: string | null = null;
 
 function bazeSkipReason() {
   if (config.ttsProvider !== 'baze') return 'disabled';
@@ -21,7 +21,7 @@ function bazeSkipReason() {
   return null;
 }
 
-function onBazeFailure(err) {
+function onBazeFailure(err: BazeError) {
   const auth = err.status === 401 || err.status === 403;
   bazeCooldownUntil = Date.now() + (auth ? AUTH_COOLDOWN_MS : TRANSIENT_COOLDOWN_MS);
   const pause = auth ? '30 min' : '60 s';
@@ -35,7 +35,11 @@ function onBazeFailure(err) {
  * Returns { audio: Buffer, provider: 'baze' | 'cloudflare' }. Throws only if the fallback fails.
  * Pass `only` to force one provider (used by the probe script).
  */
-export async function synthesize(text, lang, { only } = {}) {
+export async function synthesize(
+  text: string,
+  lang: string,
+  { only }: { only?: TtsProvider } = {},
+): Promise<{ audio: Buffer; provider: TtsProvider }> {
   const skip = only === 'cloudflare' ? 'forced' : only === 'baze' ? null : bazeSkipReason();
 
   if (skip === 'budget') {
@@ -56,7 +60,7 @@ export async function synthesize(text, lang, { only } = {}) {
       return { audio, provider: 'baze' };
     } catch (err) {
       if (only === 'baze') throw err;
-      onBazeFailure(err);
+      onBazeFailure(err as BazeError);
     }
   }
 
