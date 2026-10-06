@@ -1,11 +1,11 @@
 import { Client, GatewayIntentBits, Events, MessageFlags } from 'discord.js';
-import { config } from './config.js';
-import { logger } from './logger.js';
-import { initStore, flushStore, getTtsChannel, canSpend } from './store.js';
-import { sanitize } from './text/sanitize.js';
-import { detectLang } from './text/langDetect.js';
-import { getGuildVoice, destroyAll } from './voice/voiceManager.js';
-import { registerForGuild, clearGlobalCommands, handleInteraction } from './commands.js';
+import { config } from './config.ts';
+import { logger } from './logger.ts';
+import { initStore, flushStore, getTtsChannel, canSpend } from './store.ts';
+import { sanitize } from './text/sanitize.ts';
+import { detectLang } from './text/langDetect.ts';
+import { getGuildVoice, destroyAll } from './voice/voiceManager.ts';
+import { registerForGuild, clearGlobalCommands, handleInteraction } from './commands.ts';
 
 const client = new Client({
   intents: [
@@ -22,7 +22,7 @@ client.once(Events.ClientReady, async (readyClient) => {
     const removed = await clearGlobalCommands();
     if (removed > 0) logger.info(`[bot] removed ${removed} stale global command(s)`);
   } catch (err) {
-    logger.warn(`[bot] clearing global commands failed: ${err.message}`);
+    logger.warn(`[bot] clearing global commands failed: ${(err as Error).message}`);
   }
   let registered = 0;
   for (const [guildId, guild] of readyClient.guilds.cache) {
@@ -31,9 +31,10 @@ client.once(Events.ClientReady, async (readyClient) => {
       registered++;
       logger.debug(`[bot] registered commands for ${guild.name} (${guildId})`);
     } catch (err) {
+      const { code, status, message } = err as Error & { code?: unknown; status?: unknown };
       logger.warn(
         `[bot] command registration failed for ${guild.name} (${guildId}): ` +
-          `[${err.code ?? err.status ?? '?'}] ${err.message}`,
+          `[${code ?? status ?? '?'}] ${message}`,
       );
     }
   }
@@ -48,7 +49,7 @@ client.on(Events.GuildCreate, async (guild) => {
     await registerForGuild(guild.id);
     logger.info(`[bot] joined ${guild.name} — commands registered`);
   } catch (err) {
-    logger.warn(`[bot] command registration on join failed: ${err.message}`);
+    logger.warn(`[bot] command registration on join failed: ${(err as Error).message}`);
   }
 });
 
@@ -56,7 +57,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   try {
     await handleInteraction(interaction);
   } catch (err) {
-    logger.error(`[bot] interaction error: ${err.message}`);
+    logger.error(`[bot] interaction error: ${(err as Error).message}`);
     if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
       interaction
         .reply({ content: '오류가 발생했습니다.', flags: MessageFlags.Ephemeral })
@@ -101,7 +102,7 @@ client.on(Events.MessageCreate, async (message) => {
 
     getGuildVoice(message.guild).enqueue({ voiceChannel, text, lang });
   } catch (err) {
-    logger.error(`[bot] message handler error: ${err.message}`);
+    logger.error(`[bot] message handler error: ${(err as Error).message}`);
   }
 });
 
@@ -109,7 +110,7 @@ client.on(Events.Error, (err) => logger.error(`[bot] client error: ${err.message
 process.on('unhandledRejection', (reason) => logger.error(`[bot] unhandledRejection: ${reason}`));
 
 let shuttingDown = false;
-async function shutdown(signal) {
+async function shutdown(signal: string) {
   if (shuttingDown) return;
   shuttingDown = true;
   logger.info(`[bot] ${signal} received — shutting down`);

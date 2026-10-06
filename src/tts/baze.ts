@@ -1,4 +1,4 @@
-import { config } from '../config.js';
+import { config } from '../config.ts';
 
 // Google Gemini TTS through the BAZE API Gateway (POST /audio/speech/).
 // Docs: https://docs.mindlogic.ai/docs/inu/api-gateway/reference/audio-tts
@@ -12,7 +12,7 @@ const REQUEST_TIMEOUT_MS = 15000;
 
 // Credits per 10k tokens, from the gateway's model table. Unknown models are charged at the
 // highest known rate so the daily budget over-counts rather than under-counts.
-const CREDIT_RATES = {
+const CREDIT_RATES: Record<string, { input: number; output: number }> = {
   'gemini-3.1-flash-tts-preview': { input: 10, output: 200 },
   'gemini-2.5-flash-preview-tts': { input: 5, output: 100 },
   'gemini-2.5-pro-preview-tts': { input: 10, output: 200 },
@@ -20,14 +20,16 @@ const CREDIT_RATES = {
 const FALLBACK_RATE = { input: 10, output: 200 };
 
 export class BazeError extends Error {
-  constructor(message, status) {
+  status: number | undefined;
+
+  constructor(message: string, status?: number) {
     super(message);
     this.name = 'BazeError';
     this.status = status; // HTTP status, or undefined for network errors / timeouts
   }
 }
 
-export function pcmToWav(pcm, sampleRate = PCM_SAMPLE_RATE, channels = PCM_CHANNELS, bits = PCM_BITS) {
+export function pcmToWav(pcm: Buffer, sampleRate = PCM_SAMPLE_RATE, channels = PCM_CHANNELS, bits = PCM_BITS) {
   const blockAlign = (channels * bits) / 8;
   const header = Buffer.alloc(44);
   header.write('RIFF', 0, 'ascii');
@@ -46,7 +48,7 @@ export function pcmToWav(pcm, sampleRate = PCM_SAMPLE_RATE, channels = PCM_CHANN
   return Buffer.concat([header, pcm]);
 }
 
-export function creditsFor(model, inputTokens, outputTokens) {
+export function creditsFor(model: string, inputTokens: number, outputTokens: number): number {
   const rate = CREDIT_RATES[model] || FALLBACK_RATE;
   return (inputTokens * rate.input + outputTokens * rate.output) / 10000;
 }
@@ -55,8 +57,8 @@ export function creditsFor(model, inputTokens, outputTokens) {
  * Synthesize `text` with Gemini TTS. Gemini picks the language from the text itself.
  * Returns { audio: <WAV Buffer>, credits }. Throws BazeError on any failure.
  */
-export async function synthesizeBaze(text) {
-  let response;
+export async function synthesizeBaze(text: string): Promise<{ audio: Buffer; credits: number }> {
+  let response: Response;
   try {
     response = await fetch(`${config.bazeBaseUrl.replace(/\/+$/, '')}/audio/speech/`, {
       method: 'POST',
@@ -68,7 +70,8 @@ export async function synthesizeBaze(text) {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (err) {
-    throw new BazeError(`request failed: ${err.name === 'TimeoutError' ? 'timed out' : err.message}`);
+    const { name, message } = err as Error;
+    throw new BazeError(`request failed: ${name === 'TimeoutError' ? 'timed out' : message}`);
   }
 
   if (!response.ok) {

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-function required(name) {
+function required(name: string): string {
   const value = process.env[name];
   if (!value || !value.trim()) {
     console.error(`[config] Missing required environment variable: ${name}`);
@@ -9,12 +9,12 @@ function required(name) {
   return value.trim();
 }
 
-function optional(name, fallback) {
+function optional(name: string, fallback: string): string {
   const value = process.env[name];
   return value === undefined || value === '' ? fallback : value.trim();
 }
 
-function number(name, fallback) {
+function number(name: string, fallback: number): number {
   const value = process.env[name];
   if (value === undefined || value === '') return fallback;
   const parsed = Number(value);
@@ -22,16 +22,34 @@ function number(name, fallback) {
 }
 
 // Playback gain multiplier: must be a positive finite number, capped to avoid ear-splitting typos.
-function gain(name, fallback) {
+function gain(name: string, fallback: number): number {
   const value = number(name, fallback);
   return value > 0 ? Math.min(value, 10) : fallback;
 }
 
-function boolean(name, fallback) {
+function boolean(name: string, fallback: boolean): boolean {
   const value = process.env[name];
   if (value === undefined || value === '') return fallback;
   return /^(1|true|yes|on)$/i.test(value.trim());
 }
+
+export type TtsProvider = 'baze' | 'cloudflare';
+
+// Primary TTS provider: "baze" (Gemini, falls back to MeloTTS) or "cloudflare" (MeloTTS only).
+// Defaults to baze only when a key is configured, so existing deployments keep working.
+function ttsProvider(bazeApiKey: string): TtsProvider {
+  const requested = optional('TTS_PROVIDER', bazeApiKey ? 'baze' : 'cloudflare').toLowerCase();
+  if (requested !== 'baze' && requested !== 'cloudflare') {
+    console.error(`[config] TTS_PROVIDER must be "baze" or "cloudflare" (got "${requested}")`);
+    process.exit(1);
+  }
+  if (requested === 'baze' && !bazeApiKey) {
+    console.warn('[config] TTS_PROVIDER=baze but BAZE_API_KEY is empty — using cloudflare (MeloTTS) only');
+  }
+  return requested === 'baze' && bazeApiKey ? 'baze' : 'cloudflare';
+}
+
+const bazeApiKey = optional('BAZE_API_KEY', '');
 
 export const config = {
   // Discord
@@ -46,13 +64,14 @@ export const config = {
 
   // BAZE API Gateway (Google Gemini TTS). Used as the primary provider when a key is set;
   // Cloudflare MeloTTS above stays the fallback, so CF_* remain required.
-  bazeApiKey: optional('BAZE_API_KEY', ''),
+  bazeApiKey,
   bazeBaseUrl: optional('BAZE_BASE_URL', 'https://factchat-cloud.mindlogic.ai/v1/gateway'),
   bazeTtsModel: optional('BAZE_TTS_MODEL', 'gemini-3.1-flash-tts-preview'),
   bazeTtsVoice: optional('BAZE_TTS_VOICE', 'Kore'),
   // Soft daily credit budget for Gemini TTS (resets at 00:00 UTC). 0 disables it.
   // Default ~= 30,000 monthly credits / 31 days.
   bazeDailyCreditLimit: number('BAZE_DAILY_CREDIT_LIMIT', 900),
+  ttsProvider: ttsProvider(bazeApiKey),
 
   // TTS behaviour
   defaultLang: optional('TTS_DEFAULT_LANG', 'kr').toLowerCase(),
@@ -69,21 +88,9 @@ export const config = {
     jp: gain('TTS_GAIN_JP', 1),
     zh: gain('TTS_GAIN_ZH', 4),
     en: gain('TTS_GAIN_EN', 1),
-  },
+  } as Record<string, number>,
 
   // Runtime
   dataDir: optional('DATA_DIR', './data'),
   logLevel: optional('LOG_LEVEL', 'info').toLowerCase(),
 };
-
-// Primary TTS provider: "baze" (Gemini, falls back to MeloTTS) or "cloudflare" (MeloTTS only).
-// Defaults to baze only when a key is configured, so existing deployments keep working.
-const requestedProvider = optional('TTS_PROVIDER', config.bazeApiKey ? 'baze' : 'cloudflare').toLowerCase();
-if (!['baze', 'cloudflare'].includes(requestedProvider)) {
-  console.error(`[config] TTS_PROVIDER must be "baze" or "cloudflare" (got "${requestedProvider}")`);
-  process.exit(1);
-}
-if (requestedProvider === 'baze' && !config.bazeApiKey) {
-  console.warn('[config] TTS_PROVIDER=baze but BAZE_API_KEY is empty — using cloudflare (MeloTTS) only');
-}
-config.ttsProvider = requestedProvider === 'baze' && config.bazeApiKey ? 'baze' : 'cloudflare';

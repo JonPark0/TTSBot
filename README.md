@@ -101,8 +101,17 @@ docker compose down
 
 ```bash
 npm install
-npm start
+npm run build   # src/*.ts → dist/*.js
+npm start       # node dist/index.js
 ```
+
+개발 중에는 빌드 없이 `npm run dev` 로 실행할 수 있습니다 (Node가 `src/index.ts` 를 직접 실행하고,
+파일이 바뀌면 재시작). 타입 검사는 `npm run typecheck`, 테스트는 `npm test` 입니다.
+
+> 운영(`npm start`, Docker)은 컴파일된 `dist/` 를 실행합니다. Node가 `.ts` 를 직접 실행하면
+> 타입 제거기(type stripping)가 프로세스가 끝날 때까지 메모리에 남아 상주 메모리가 약 14–19 MB 늘기 때문입니다.
+> 그래서 소스는 Node가 그대로 실행할 수 있는 형태로만 씁니다 (`tsconfig.json` 이 검사):
+> 상대 경로 import 에 `.ts` 확장자, 타입만 가져올 때 `import type`, `enum`·`namespace`·생성자 매개변수 프로퍼티 금지.
 
 > Opus 인코딩은 순수 JS 구현인 `opusscript` 로 동작하므로 별도 빌드 도구가 필요 없습니다.
 > 빌드 도구(예: Visual Studio Build Tools)가 있으면 더 빠른 네이티브 `@discordjs/opus`
@@ -178,9 +187,9 @@ npm start
 ```bash
 # 컨테이너 안에서 직접 합성해 결과를 저장 (확장자는 응답 형식에 맞춰 결정됨)
 # 세 번째 인자: auto(기본, Gemini → MeloTTS) | baze(Gemini만) | cloudflare(MeloTTS만)
-docker compose exec tts-bot node src/probe.js "안녕하세요 테스트입니다" kr
-docker compose exec tts-bot node src/probe.js "안녕하세요 테스트입니다" kr baze
-docker compose exec tts-bot node src/probe.js "你好，这是一个测试。" zh cloudflare
+docker compose exec tts-bot node dist/probe.js "안녕하세요 테스트입니다" kr
+docker compose exec tts-bot node dist/probe.js "안녕하세요 테스트입니다" kr baze
+docker compose exec tts-bot node dist/probe.js "你好，这是一个测试。" zh cloudflare
 # 저장된 파일을 호스트로 복사해서 재생 (출력의 saved -> 경로 참고)
 docker compose cp tts-bot:/tmp/probe-kr.wav ./
 ```
@@ -204,6 +213,6 @@ cf ai run @cf/myshell-ai/melotts --prompt "안녕하세요" --lang kr
   명령어를 바꿨다면 `docker compose up -d --build` 로 재시작만 하면 바로 반영됩니다.
   (예전에 전역으로 등록된 명령어가 있으면 시작 시 자동으로 지워 중복 표시를 막습니다.)
 - 테스트: `npm test` (네트워크 없이 가짜 응답으로 Gemini 호출·백업 전환·크레딧 상한을 검사)
-- `melotts` 의 `lang` 매핑은 `src/tts/cloudflare.js` 의 `LANG_MAP` 에서 조정합니다.
+- `melotts` 의 `lang` 매핑은 `src/tts/cloudflare.ts` 의 `LANG_MAP` 에서 조정합니다.
 - 설정과 일일 사용량은 `store.json` 에 저장됩니다 (Docker: named volume `tts-data`,
   로컬: `DATA_DIR`). 내용 확인: `docker compose exec tts-bot cat /app/data/store.json`

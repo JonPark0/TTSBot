@@ -1,4 +1,5 @@
-import { config } from '../config.js';
+import type { Message } from 'discord.js';
+import { config } from '../config.ts';
 
 const RE_CODE_BLOCK = /```[\s\S]*?```/g;
 const RE_INLINE_CODE = /`([^`]*)`/g;
@@ -25,7 +26,7 @@ const RE_DISALLOWED =
 
 const RE_WHITESPACE = /\s+/g;
 
-function resolveMentions(text, message) {
+function resolveMentions(text: string, message?: Message): string {
   if (!message) {
     return text
       .replace(RE_USER_MENTION, ' ')
@@ -33,17 +34,17 @@ function resolveMentions(text, message) {
       .replace(RE_ROLE_MENTION, ' ');
   }
   return text
-    .replace(RE_USER_MENTION, (_, id) => {
+    .replace(RE_USER_MENTION, (_, id: string) => {
       const member = message.mentions?.members?.get(id) || message.guild?.members?.cache.get(id);
       const user = message.mentions?.users?.get(id) || message.client?.users?.cache.get(id);
       const name = member?.displayName || user?.username;
       return name ? ` ${name} ` : ' ';
     })
-    .replace(RE_CHANNEL_MENTION, (_, id) => {
+    .replace(RE_CHANNEL_MENTION, (_, id: string) => {
       const channel = message.guild?.channels?.cache.get(id);
       return channel ? ` ${channel.name} ` : ' ';
     })
-    .replace(RE_ROLE_MENTION, (_, id) => {
+    .replace(RE_ROLE_MENTION, (_, id: string) => {
       const role = message.guild?.roles?.cache.get(id);
       return role ? ` ${role.name} ` : ' ';
     });
@@ -53,7 +54,7 @@ function resolveMentions(text, message) {
  * Turn a raw Discord message into a clean string suitable for TTS.
  * Returns '' when nothing speakable remains.
  */
-export function sanitize(content, { message } = {}) {
+export function sanitize(content: unknown, { message }: { message?: Message } = {}): string {
   let text = typeof content === 'string' ? content : '';
   if (!text) return '';
 

@@ -6,11 +6,13 @@ import {
   MessageFlags,
   REST,
   Routes,
+  type APIApplicationCommand,
+  type Interaction,
 } from 'discord.js';
-import { config } from './config.js';
-import { getTtsChannel, setTtsChannel, clearTtsChannel, usageInfo } from './store.js';
+import { config } from './config.ts';
+import { getTtsChannel, setTtsChannel, clearTtsChannel, usageInfo } from './store.ts';
 
-const TEXT_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
+const TEXT_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement] as const;
 
 export const commands = [
   new SlashCommandBuilder()
@@ -35,7 +37,7 @@ export const commands = [
 
 // Commands are registered per guild only (on startup and on guild join): guild command
 // updates show up in Discord immediately, so a restart is all it takes to apply changes.
-export async function registerForGuild(guildId) {
+export async function registerForGuild(guildId: string) {
   const rest = new REST({ version: '10' }).setToken(config.discordToken);
   await rest.put(Routes.applicationGuildCommands(config.discordClientId, guildId), { body: commands });
 }
@@ -47,7 +49,7 @@ export async function registerForGuild(guildId) {
 // (Discord error 50240); that command is left alone. Returns the number removed.
 export async function clearGlobalCommands() {
   const rest = new REST({ version: '10' }).setToken(config.discordToken);
-  const existing = await rest.get(Routes.applicationCommands(config.discordClientId));
+  const existing = (await rest.get(Routes.applicationCommands(config.discordClientId))) as APIApplicationCommand[];
   const stale = existing.filter((cmd) => cmd.type !== ApplicationCommandType.PrimaryEntryPoint);
   for (const cmd of stale) {
     await rest.delete(Routes.applicationCommand(config.discordClientId, cmd.id));
@@ -55,7 +57,7 @@ export async function clearGlobalCommands() {
   return stale.length;
 }
 
-export async function handleInteraction(interaction) {
+export async function handleInteraction(interaction: Interaction) {
   if (!interaction.isChatInputCommand() || interaction.commandName !== 'tts-channel') return;
 
   if (!interaction.inGuild()) {
@@ -70,7 +72,7 @@ export async function handleInteraction(interaction) {
 
   if (sub === 'set') {
     const channel = interaction.options.getChannel('channel') || interaction.channel;
-    if (!channel || !TEXT_CHANNEL_TYPES.includes(channel.type)) {
+    if (!channel || !(TEXT_CHANNEL_TYPES as readonly ChannelType[]).includes(channel.type)) {
       return interaction.reply({
         content: '일반 텍스트 채널만 TTS 채널로 지정할 수 있습니다.',
         flags: MessageFlags.Ephemeral,

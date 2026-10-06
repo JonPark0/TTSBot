@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import type { Guild, VoiceBasedChannel } from 'discord.js';
 import {
   joinVoiceChannel,
   createAudioPlayer,
@@ -8,17 +9,33 @@ import {
   VoiceConnectionStatus,
   StreamType,
   NoSubscriberBehavior,
+  type AudioPlayer,
+  type VoiceConnection,
 } from '@discordjs/voice';
-import { config } from '../config.js';
-import { logger } from '../logger.js';
-import { synthesize } from '../tts/index.js';
-import { canSpend, addUsage } from '../store.js';
+import { config } from '../config.ts';
+import { logger } from '../logger.ts';
+import { synthesize } from '../tts/index.ts';
+import { canSpend, addUsage } from '../store.ts';
+
+interface TtsJob {
+  voiceChannel: VoiceBasedChannel;
+  text: string;
+  lang: string;
+}
 
 /**
  * Owns the voice connection, audio player and message queue for a single guild.
  */
 class GuildVoice {
-  constructor(guild) {
+  guild: Guild;
+  queue: TtsJob[];
+  connection: VoiceConnection | null;
+  channelId: string | null;
+  busy: boolean;
+  idleTimer: NodeJS.Timeout | null;
+  player: AudioPlayer;
+
+  constructor(guild: Guild) {
     this.guild = guild;
     this.queue = [];
     this.connection = null;
@@ -41,7 +58,7 @@ class GuildVoice {
     });
   }
 
-  enqueue(job) {
+  enqueue(job: TtsJob): boolean {
     if (this.queue.length >= config.queueMax) {
       logger.warn(`[voice:${this.guild.id}] queue full (${config.queueMax}), dropping message`);
       return false;
@@ -51,7 +68,7 @@ class GuildVoice {
     return true;
   }
 
-  async #drain() {
+  async #drain(): Promise<void> {
     if (this.busy) return;
     const job = this.queue.shift();
     if (!job) {
@@ -96,13 +113,13 @@ class GuildVoice {
       this.player.play(resource);
       // The 'Idle' / 'error' handlers advance the queue from here.
     } catch (err) {
-      logger.error(`[voice:${this.guild.id}] TTS job failed: ${err.message}`);
+      logger.error(`[voice:${this.guild.id}] TTS job failed: ${(err as Error).message}`);
       this.busy = false;
       return this.#drain();
     }
   }
 
-  async #ensureConnection(voiceChannel) {
+  async #ensureConnection(voiceChannel: VoiceBasedChannel): Promise<VoiceConnection> {
     if (
       this.connection &&
       this.channelId === voiceChannel.id &&
@@ -136,7 +153,7 @@ class GuildVoice {
       } catch {
         /* noop */
       }
-      throw new Error(`voice connection did not become ready: ${err.message}`);
+      throw new Error(`voice connection did not become ready: ${(err as Error).message}`);
     }
 
     connection.subscribe(this.player);
@@ -200,9 +217,9 @@ class GuildVoice {
   }
 }
 
-const registry = new Map();
+const registry = new Map<string, GuildVoice>();
 
-export function getGuildVoice(guild) {
+export function getGuildVoice(guild: Guild): GuildVoice {
   let gv = registry.get(guild.id);
   if (!gv) {
     gv = new GuildVoice(guild);

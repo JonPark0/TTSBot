@@ -1,20 +1,35 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { config } from './config.js';
-import { logger } from './logger.js';
+import { config } from './config.ts';
+import { logger } from './logger.ts';
 
 const FILE = path.join(config.dataDir, 'store.json');
 
+interface GuildConfig {
+  ttsChannelId?: string;
+}
+
+interface Usage {
+  date: string;
+  chars: number;
+  credits: number;
+}
+
+interface State {
+  guilds: Record<string, GuildConfig>;
+  usage: Usage;
+}
+
 // usage.credits counts Gemini (BAZE) TTS credits; it shares the UTC-day reset with chars.
-let state = { guilds: {}, usage: emptyUsage() };
-let writeTimer = null;
+let state: State = { guilds: {}, usage: emptyUsage() };
+let writeTimer: NodeJS.Timeout | null = null;
 let canPersist = true;
 
 function today() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
 }
 
-function emptyUsage(date = today()) {
+function emptyUsage(date = today()): Usage {
   return { date, chars: 0, credits: 0 };
 }
 
@@ -30,7 +45,7 @@ function scheduleWrite() {
   if (writeTimer || !canPersist) return;
   writeTimer = setTimeout(() => {
     writeTimer = null;
-    persistNow().catch((err) => logger.error(`[store] write failed: ${err.message}`));
+    persistNow().catch((err: Error) => logger.error(`[store] write failed: ${err.message}`));
   }, 300);
 }
 
@@ -58,15 +73,16 @@ export async function initStore() {
     };
     logger.info(`[store] loaded ${Object.keys(state.guilds).length} guild config(s) from ${FILE}`);
   } catch (err) {
-    if (err.code !== 'ENOENT') {
-      logger.warn(`[store] could not read ${FILE}: ${err.message} — starting fresh`);
+    const { code, message } = err as NodeJS.ErrnoException;
+    if (code !== 'ENOENT') {
+      logger.warn(`[store] could not read ${FILE}: ${message} — starting fresh`);
     }
     try {
       await persistNow();
     } catch (writeErr) {
       canPersist = false;
       logger.warn(
-        `[store] cannot write to ${FILE}: ${writeErr.message} — running in memory only ` +
+        `[store] cannot write to ${FILE}: ${(writeErr as Error).message} — running in memory only ` +
           `(fix the permissions on the data directory to persist config)`,
       );
     }
@@ -74,41 +90,41 @@ export async function initStore() {
   rollDate();
 }
 
-export function getTtsChannel(guildId) {
+export function getTtsChannel(guildId: string): string | null {
   return state.guilds[guildId]?.ttsChannelId ?? null;
 }
 
-export function setTtsChannel(guildId, channelId) {
+export function setTtsChannel(guildId: string, channelId: string) {
   state.guilds[guildId] = { ...(state.guilds[guildId] || {}), ttsChannelId: channelId };
   scheduleWrite();
 }
 
-export function clearTtsChannel(guildId) {
+export function clearTtsChannel(guildId: string) {
   if (state.guilds[guildId]?.ttsChannelId) {
     delete state.guilds[guildId].ttsChannelId;
     scheduleWrite();
   }
 }
 
-export function canSpend(chars) {
+export function canSpend(chars: number): boolean {
   rollDate();
   if (!config.dailyCharLimit || config.dailyCharLimit <= 0) return true;
   return state.usage.chars + chars <= config.dailyCharLimit;
 }
 
-export function addUsage(chars) {
+export function addUsage(chars: number) {
   rollDate();
   state.usage.chars += chars;
   scheduleWrite();
 }
 
-export function canSpendCredits() {
+export function canSpendCredits(): boolean {
   rollDate();
   if (!config.bazeDailyCreditLimit || config.bazeDailyCreditLimit <= 0) return true;
   return state.usage.credits < config.bazeDailyCreditLimit;
 }
 
-export function addCredits(credits) {
+export function addCredits(credits: number) {
   rollDate();
   state.usage.credits += credits;
   scheduleWrite();
@@ -134,6 +150,6 @@ export async function flushStore() {
   try {
     await persistNow();
   } catch (err) {
-    logger.warn(`[store] flush failed: ${err.message}`);
+    logger.warn(`[store] flush failed: ${(err as Error).message}`);
   }
 }

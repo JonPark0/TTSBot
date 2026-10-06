@@ -1,5 +1,5 @@
-import { config } from '../config.js';
-import { logger } from '../logger.js';
+import { config } from '../config.ts';
+import { logger } from '../logger.ts';
 
 // The request body ({ prompt, lang }) and response handling below follow the MeloTTS
 // schema. Other Workers AI TTS models (e.g. @cf/deepgram/aura-*) take a different
@@ -15,7 +15,7 @@ if (config.cfTtsModel !== MELOTTS_MODEL) {
 // Map our internal detector codes to the MeloTTS `lang` values Workers AI expects.
 // Workers AI accepts: en, es, fr, jp, kr, zh (it rejects ISO codes like "ko" with error 8007).
 // Verified 2026-10-02: kr / jp / zh / en all produce intelligible speech.
-const LANG_MAP = {
+const LANG_MAP: Record<string, string> = {
   kr: 'kr',
   ko: 'kr',
   jp: 'jp',
@@ -33,7 +33,7 @@ function endpoint() {
   return `https://api.cloudflare.com/client/v4/accounts/${config.cfAccountId}/ai/run/${config.cfTtsModel}`;
 }
 
-export function sniff(buffer) {
+export function sniff(buffer: Buffer): string {
   if (buffer.length >= 3 && buffer.toString('ascii', 0, 3) === 'ID3') return 'mp3(ID3)';
   if (buffer.length >= 2 && buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0) return 'mp3(frame)';
   if (buffer.length >= 4 && buffer.toString('ascii', 0, 4) === 'RIFF') return 'wav';
@@ -46,7 +46,7 @@ export function sniff(buffer) {
  * Returns a Buffer containing an audio file. MeloTTS currently returns a
  * 44.1 kHz mono 16-bit WAV even though its schema says MP3; ffmpeg handles either.
  */
-export async function synthesize(text, lang) {
+export async function synthesize(text: string, lang: string): Promise<Buffer> {
   const mapped = LANG_MAP[lang] || LANG_MAP[config.defaultLang] || 'en';
 
   const response = await fetch(endpoint(), {
@@ -65,10 +65,15 @@ export async function synthesize(text, lang) {
     throw new Error(`Cloudflare AI HTTP ${response.status} (lang=${mapped}): ${body.slice(0, 400)}`);
   }
 
-  let audio;
+  let audio: Buffer;
   // MeloTTS returns JSON: { result: { audio: "<base64 WAV>" }, success: true }
   if (contentType.includes('application/json')) {
-    const json = await response.json();
+    const json = (await response.json()) as {
+      success?: boolean;
+      errors?: unknown;
+      result?: { audio?: string };
+      audio?: string;
+    };
     if (json.success === false) {
       throw new Error(
         `Cloudflare AI error (lang=${mapped}): ${JSON.stringify(json.errors || json).slice(0, 400)}`,
