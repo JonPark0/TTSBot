@@ -1,0 +1,169 @@
+{
+ "model_type": "ONNX",
+ "npu_mode": "NPU3",
+ "target_hardware": "AX650",
+ "quant": {
+  "input_configs": [
+   {
+    "tensor_name": "noisy_latent",
+    "calibration_dataset": "calib_est_T96_L96_n256.tar",
+    "calibration_format": "NumpyObject",
+    "calibration_size": -1,
+    "calibration_mean": [],
+    "calibration_std": []
+   },
+   {
+    "tensor_name": "text_emb",
+    "calibration_dataset": "calib_est_T96_L96_n256.tar",
+    "calibration_format": "NumpyObject",
+    "calibration_size": -1,
+    "calibration_mean": [],
+    "calibration_std": []
+   },
+   {
+    "tensor_name": "style_ttl",
+    "calibration_dataset": "calib_est_T96_L96_n256.tar",
+    "calibration_format": "NumpyObject",
+    "calibration_size": -1,
+    "calibration_mean": [],
+    "calibration_std": []
+   },
+   {
+    "tensor_name": "latent_mask",
+    "calibration_dataset": "calib_est_T96_L96_n256.tar",
+    "calibration_format": "NumpyObject",
+    "calibration_size": -1,
+    "calibration_mean": [],
+    "calibration_std": []
+   },
+   {
+    "tensor_name": "text_mask",
+    "calibration_dataset": "calib_est_T96_L96_n256.tar",
+    "calibration_format": "NumpyObject",
+    "calibration_size": -1,
+    "calibration_mean": [],
+    "calibration_std": []
+   },
+   {
+    "tensor_name": "time_emb",
+    "calibration_dataset": "calib_est_T96_L96_n256.tar",
+    "calibration_format": "NumpyObject",
+    "calibration_size": -1,
+    "calibration_mean": [],
+    "calibration_std": []
+   },
+   {
+    "tensor_name": "rope_lat_sin",
+    "calibration_dataset": "calib_est_T96_L96_n256.tar",
+    "calibration_format": "NumpyObject",
+    "calibration_size": -1,
+    "calibration_mean": [],
+    "calibration_std": []
+   },
+   {
+    "tensor_name": "rope_lat_cos",
+    "calibration_dataset": "calib_est_T96_L96_n256.tar",
+    "calibration_format": "NumpyObject",
+    "calibration_size": -1,
+    "calibration_mean": [],
+    "calibration_std": []
+   },
+   {
+    "tensor_name": "rope_txt_sin",
+    "calibration_dataset": "calib_est_T96_L96_n256.tar",
+    "calibration_format": "NumpyObject",
+    "calibration_size": -1,
+    "calibration_mean": [],
+    "calibration_std": []
+   },
+   {
+    "tensor_name": "rope_txt_cos",
+    "calibration_dataset": "calib_est_T96_L96_n256.tar",
+    "calibration_format": "NumpyObject",
+    "calibration_size": -1,
+    "calibration_mean": [],
+    "calibration_std": []
+   },
+   {
+    "tensor_name": "lat_last",
+    "calibration_dataset": "calib_est_T96_L96_n256.tar",
+    "calibration_format": "NumpyObject",
+    "calibration_size": -1,
+    "calibration_mean": [],
+    "calibration_std": []
+   }
+  ],
+  "layer_configs": [
+   {
+    "start_tensor_names": [
+     "DEFAULT"
+    ],
+    "end_tensor_names": [
+     "DEFAULT"
+    ],
+    "data_type": "U16"
+   }
+  ],
+  "calibration_method": "MinMax",
+  "precision_analysis": true,
+  "precision_analysis_method": "EndToEnd",
+  "conv_bias_data_type": "S32",
+  "ln_scale_data_type": "FP32",
+  "transformer_opt_level": 1
+ },
+ "input_processors": [
+  {
+   "tensor_name": "noisy_latent",
+   "src_dtype": "FP32"
+  },
+  {
+   "tensor_name": "text_emb",
+   "src_dtype": "FP32"
+  },
+  {
+   "tensor_name": "style_ttl",
+   "src_dtype": "FP32"
+  },
+  {
+   "tensor_name": "latent_mask",
+   "src_dtype": "FP32"
+  },
+  {
+   "tensor_name": "text_mask",
+   "src_dtype": "FP32"
+  },
+  {
+   "tensor_name": "time_emb",
+   "src_dtype": "FP32"
+  },
+  {
+   "tensor_name": "rope_lat_sin",
+   "src_dtype": "FP32"
+  },
+  {
+   "tensor_name": "rope_lat_cos",
+   "src_dtype": "FP32"
+  },
+  {
+   "tensor_name": "rope_txt_sin",
+   "src_dtype": "FP32"
+  },
+  {
+   "tensor_name": "rope_txt_cos",
+   "src_dtype": "FP32"
+  },
+  {
+   "tensor_name": "lat_last",
+   "src_dtype": "FP32"
+  }
+ ],
+ "output_processors": [
+  {
+   "tensor_name": "/Sub_output_0",
+   "output_dtype": "FP32"
+  }
+ ],
+ "compiler": {
+  "check": 0
+ }
+}

@@ -14,7 +14,7 @@ import {
 } from '@discordjs/voice';
 import { config } from '../config.ts';
 import { logger } from '../logger.ts';
-import { synthesize } from '../tts/index.ts';
+import { synthesize, SkipError } from '../tts/index.ts';
 import { canSpend, addUsage } from '../store.ts';
 
 interface TtsJob {
@@ -87,7 +87,10 @@ class GuildVoice {
         return this.#drain();
       }
 
-      if (!canSpend(text.length)) {
+      // The daily character budget protects the cloud providers' free tiers. The local card server
+      // costs nothing, so with TTS_PROVIDER=local a spent budget only turns the cloud fallbacks off.
+      const paid = canSpend(text.length);
+      if (!paid && config.ttsProvider !== 'local') {
         logger.warn(
           `[voice:${this.guild.id}] daily TTS character budget exhausted — clearing queue until reset`,
         );
@@ -96,13 +99,14 @@ class GuildVoice {
         return this.#drain();
       }
 
-      const { audio, provider } = await synthesize(text, lang);
-      addUsage(text.length);
+      const { audio, provider } = await synthesize(text, lang, { paid });
+      if (provider !== 'local') addUsage(text.length);
 
       await this.#ensureConnection(voiceChannel);
 
       // The per-language gains were measured on MeloTTS output (quiet Chinese); Gemini output
-      // already peaks near full scale and would clip if boosted, so it always plays at 1.
+      // already peaks near full scale and would clip if boosted, and the local server peak-normalizes
+      // its output, so both always play at 1.
       // Inline volume costs an extra PCM transform per frame, so only enable it when needed.
       const gain = provider === 'cloudflare' ? (config.langGain[lang] ?? 1) : 1;
       const resource = createAudioResource(Readable.from(audio), {
@@ -113,7 +117,8 @@ class GuildVoice {
       this.player.play(resource);
       // The 'Idle' / 'error' handlers advance the queue from here.
     } catch (err) {
-      logger.error(`[voice:${this.guild.id}] TTS job failed: ${(err as Error).message}`);
+      if (err instanceof SkipError) logger.debug(`[voice:${this.guild.id}] ${err.message}`);
+      else logger.error(`[voice:${this.guild.id}] TTS job failed: ${(err as Error).message}`);
       this.busy = false;
       return this.#drain();
     }

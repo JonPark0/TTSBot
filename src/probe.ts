@@ -2,6 +2,7 @@
 //   docker compose exec tts-bot node dist/probe.js "안녕하세요 테스트입니다" kr            # Gemini, MeloTTS fallback
 //   docker compose exec tts-bot node dist/probe.js "안녕하세요 테스트입니다" kr baze       # Gemini only
 //   docker compose exec tts-bot node dist/probe.js "你好，这是一个测试。" zh cloudflare  # MeloTTS only
+//   docker compose exec tts-bot node dist/probe.js "ㅇㅋ 10분 뒤에 들어갈게" kr local     # local card server only
 // Locally (without building first): node src/probe.ts "..." kr
 // The file extension follows the returned format (both providers produce WAV).
 // Then copy the file out:  docker compose cp tts-bot:/tmp/probe-kr.wav ./
@@ -17,15 +18,16 @@ const text = process.argv[2] || '안녕하세요. 테스트입니다.';
 const lang = process.argv[3] || config.defaultLang;
 const providerArg = process.argv[4];
 const only: TtsProvider | undefined =
-  providerArg === 'baze' || providerArg === 'cloudflare' ? providerArg : undefined;
+  providerArg === 'local' || providerArg === 'baze' || providerArg === 'cloudflare' ? providerArg : undefined;
 if (providerArg && providerArg !== 'auto' && !only) {
-  console.error('provider must be one of: auto, baze, cloudflare');
+  console.error('provider must be one of: auto, local, baze, cloudflare');
   process.exit(1);
 }
 
 console.log(`provider = ${only || `auto (primary: ${config.ttsProvider})`}`);
+console.log(`local = ${config.localTtsUrl ? `${config.localTtsUrl} / voice ${config.localTtsVoice || '(server default)'}` : '(no LOCAL_TTS_URL)'}`);
 console.log(`gemini = ${config.bazeApiKey ? `${config.bazeTtsModel} / voice ${config.bazeTtsVoice}` : '(no BAZE_API_KEY)'}`);
-console.log(`melotts = ${config.cfTtsModel} via ${config.cfGatewayUrl || 'direct api'}`);
+console.log(`melotts = ${config.cloudflareEnabled ? `${config.cfTtsModel} via ${config.cfGatewayUrl || 'direct api'}` : '(no CF_ACCOUNT_ID / CF_API_TOKEN)'}`);
 console.log(`lang = ${lang}`);
 console.log(`text = ${JSON.stringify(text)}`);
 console.log('---');

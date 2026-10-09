@@ -90,7 +90,8 @@ client.on(Events.MessageCreate, async (message) => {
     const text = sanitize(message.content, { message });
     if (!text) return;
 
-    if (!canSpend(text.length)) {
+    // With the local card server as primary the budget only limits the cloud fallbacks (see voiceManager).
+    if (config.ttsProvider !== 'local' && !canSpend(text.length)) {
       logger.debug('[bot] daily TTS budget exhausted — skipping message');
       return;
     }

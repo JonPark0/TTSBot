@@ -1,10 +1,11 @@
 // Shared setup for tests: dummy credentials, a throwaway data dir, and a fake `fetch`
-// that answers the BAZE and Cloudflare endpoints without touching the network.
+// that answers the local card server, BAZE and Cloudflare endpoints without touching the network.
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 export const BAZE_URL = 'https://baze.test/v1/gateway';
+export const LOCAL_URL = 'http://tts.test:8850';
 
 export function setTestEnv(extra: Record<string, string> = {}) {
   Object.assign(process.env, {
@@ -27,6 +28,11 @@ export function fakePcm(seconds = 0.1) {
   return buf;
 }
 
+/** A minimal WAV like the local card server returns. */
+function fakeWav() {
+  return Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(2000)]);
+}
+
 /** A minimal WAV, base64-wrapped the way Workers AI returns MeloTTS audio. */
 function fakeMeloJson() {
   const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(2000)]);
@@ -35,9 +41,12 @@ function fakeMeloJson() {
 
 export interface FetchState {
   baze: 'ok' | 'json200' | 'network' | number;
+  local?: 'ok' | 'network' | 'unsupported' | 'empty' | number;
 }
 
 export interface FetchCalls {
+  local: number;
+  localBodies: unknown[];
   baze: number;
   cloudflare: number;
   bazeBodies: unknown[];
@@ -50,8 +59,24 @@ export interface FetchCalls {
  * Returns a `calls` record of which endpoints were hit.
  */
 export function installFetch(state: FetchState): FetchCalls {
-  const calls: FetchCalls = { baze: 0, cloudflare: 0, bazeBodies: [] };
+  const calls: FetchCalls = { local: 0, localBodies: [], baze: 0, cloudflare: 0, bazeBodies: [] };
   globalThis.fetch = async (url, init) => {
+    if (String(url).startsWith(LOCAL_URL)) {
+      calls.local++;
+      calls.localBodies.push(JSON.parse(String(init?.body)));
+      const mode = state.local ?? 'ok';
+      if (mode === 'network') throw new TypeError('fetch failed');
+      if (mode === 'unsupported') {
+        return new Response('{"error":"unsupported_language","lang":"zh"}', { status: 422, headers: { 'content-type': 'application/json' } });
+      }
+      if (mode === 'empty') {
+        return new Response('{"error":"empty_text"}', { status: 400, headers: { 'content-type': 'application/json' } });
+      }
+      if (typeof mode === 'number') {
+        return new Response(`{"error":"status ${mode}"}`, { status: mode, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(fakeWav(), { status: 200, headers: { 'content-type': 'audio/wav', 'x-tts-gen-ms': '180' } });
+    }
     if (String(url).startsWith(BAZE_URL)) {
       calls.baze++;
       calls.bazeBodies.push(JSON.parse(String(init?.body)));

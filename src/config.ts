@@ -33,37 +33,67 @@ function boolean(name: string, fallback: boolean): boolean {
   return /^(1|true|yes|on)$/i.test(value.trim());
 }
 
-export type TtsProvider = 'baze' | 'cloudflare';
+export type TtsProvider = 'local' | 'baze' | 'cloudflare';
 
-// Primary TTS provider: "baze" (Gemini, falls back to MeloTTS) or "cloudflare" (MeloTTS only).
-// Defaults to baze only when a key is configured, so existing deployments keep working.
-function ttsProvider(bazeApiKey: string): TtsProvider {
-  const requested = optional('TTS_PROVIDER', bazeApiKey ? 'baze' : 'cloudflare').toLowerCase();
-  if (requested !== 'baze' && requested !== 'cloudflare') {
-    console.error(`[config] TTS_PROVIDER must be "baze" or "cloudflare" (got "${requested}")`);
+const localTtsUrl = optional('LOCAL_TTS_URL', '');
+const bazeApiKey = optional('BAZE_API_KEY', '');
+const cfAccountId = optional('CF_ACCOUNT_ID', '');
+const cfApiToken = optional('CF_API_TOKEN', '');
+// MeloTTS on Workers AI is available only with both credentials; a local-only deployment needs neither.
+const cloudflareEnabled = Boolean(cfAccountId && cfApiToken);
+
+// Primary TTS provider:
+//   "local"      — Supertonic 3 on the local LLM-8850 card server (LOCAL_TTS_URL); falls back to
+//                  Gemini (if BAZE_API_KEY) and then MeloTTS (if CF_*) when the server is down
+//   "baze"       — Gemini, falls back to MeloTTS
+//   "cloudflare" — MeloTTS only
+// Default: local when LOCAL_TTS_URL is set, else baze when a key is set, else cloudflare,
+// so existing deployments keep working unchanged.
+function ttsProvider(): TtsProvider {
+  const fallback = localTtsUrl ? 'local' : bazeApiKey ? 'baze' : 'cloudflare';
+  const requested = optional('TTS_PROVIDER', fallback).toLowerCase();
+  if (requested !== 'local' && requested !== 'baze' && requested !== 'cloudflare') {
+    console.error(`[config] TTS_PROVIDER must be "local", "baze" or "cloudflare" (got "${requested}")`);
+    process.exit(1);
+  }
+  if (requested === 'local' && !localTtsUrl) {
+    console.error('[config] TTS_PROVIDER=local needs LOCAL_TTS_URL (e.g. http://127.0.0.1:8850)');
     process.exit(1);
   }
   if (requested === 'baze' && !bazeApiKey) {
     console.warn('[config] TTS_PROVIDER=baze but BAZE_API_KEY is empty — using cloudflare (MeloTTS) only');
   }
-  return requested === 'baze' && bazeApiKey ? 'baze' : 'cloudflare';
+  const provider = requested === 'baze' && !bazeApiKey ? 'cloudflare' : requested;
+  if (provider !== 'local' && !cloudflareEnabled) {
+    console.error(
+      `[config] TTS_PROVIDER=${provider} needs CF_ACCOUNT_ID and CF_API_TOKEN (MeloTTS is its fallback); ` +
+        'set them, or use TTS_PROVIDER=local with LOCAL_TTS_URL',
+    );
+    process.exit(1);
+  }
+  return provider;
 }
-
-const bazeApiKey = optional('BAZE_API_KEY', '');
 
 export const config = {
   // Discord
   discordToken: required('DISCORD_TOKEN'),
   discordClientId: required('DISCORD_CLIENT_ID'),
 
-  // Cloudflare Workers AI
-  cfAccountId: required('CF_ACCOUNT_ID'),
-  cfApiToken: required('CF_API_TOKEN'),
+  // Local Supertonic 3 server on the LLM-8850 card (server/ in this repo)
+  localTtsUrl,
+  localTtsVoice: optional('LOCAL_TTS_VOICE', ''), // empty = the server's default voice
+  localTtsToken: optional('LOCAL_TTS_TOKEN', ''), // must match the server's TTS_SERVER_TOKEN if it has one
+  localTtsTimeoutMs: number('LOCAL_TTS_TIMEOUT_MS', 10000),
+
+  // Cloudflare Workers AI (MeloTTS). Optional when TTS_PROVIDER=local.
+  cfAccountId,
+  cfApiToken,
+  cloudflareEnabled,
   cfTtsModel: optional('CF_TTS_MODEL', '@cf/myshell-ai/melotts'),
   cfGatewayUrl: optional('CF_GATEWAY_URL', ''),
 
-  // BAZE API Gateway (Google Gemini TTS). Used as the primary provider when a key is set;
-  // Cloudflare MeloTTS above stays the fallback, so CF_* remain required.
+  // BAZE API Gateway (Google Gemini TTS). Primary when a key is set (and no LOCAL_TTS_URL);
+  // after the local server when TTS_PROVIDER=local. Cloudflare MeloTTS stays the last fallback.
   bazeApiKey,
   bazeBaseUrl: optional('BAZE_BASE_URL', 'https://factchat-cloud.mindlogic.ai/v1/gateway'),
   bazeTtsModel: optional('BAZE_TTS_MODEL', 'gemini-3.1-flash-tts-preview'),
@@ -71,7 +101,7 @@ export const config = {
   // Soft daily credit budget for Gemini TTS (resets at 00:00 UTC). 0 disables it.
   // Default ~= 30,000 monthly credits / 31 days.
   bazeDailyCreditLimit: number('BAZE_DAILY_CREDIT_LIMIT', 900),
-  ttsProvider: ttsProvider(bazeApiKey),
+  ttsProvider: ttsProvider(),
 
   // TTS behaviour
   defaultLang: optional('TTS_DEFAULT_LANG', 'kr').toLowerCase(),
