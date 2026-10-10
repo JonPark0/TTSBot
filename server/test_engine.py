@@ -1,9 +1,11 @@
-"""python -m unittest server.test_buckets  (onnxruntime이 깔린 환경에서)"""
+"""python -m unittest server.test_engine  (onnxruntime이 깔린 환경에서, 모델 없이 돈다)"""
 import tempfile
 import unittest
 from pathlib import Path
 
-from .engine import Engine, _Bucket, find_buckets, parse_buckets
+import numpy as np
+
+from .engine import JA_UNIT, LEAD_S, TAIL_S, Engine, _Bucket, find_buckets, parse_buckets, trim
 
 
 def touch(d, *names):
@@ -47,6 +49,24 @@ class BucketTest(unittest.TestCase):
         self.assertEqual(eng._bucket(97, 50).L, 192)  # 텍스트가 넘쳐도 큰 버킷으로
         self.assertEqual(eng._bucket(150, 192).L, 192)
         self.assertIsNone(eng._bucket(150, 193))
+
+
+class JoinTest(unittest.TestCase):
+    def test_trim_keeps_short_margins(self):
+        sr = 44100
+        t = np.arange(sr) / sr
+        tone = (0.5 * np.sin(2 * np.pi * 220 * t)).astype(np.float32)
+        wav = np.concatenate([np.zeros(int(0.5 * sr), np.float32), tone, np.zeros(int(0.6 * sr), np.float32)])
+        out = trim(wav, sr)
+        self.assertAlmostEqual(len(out) / sr, 1.0 + LEAD_S + TAIL_S, delta=0.02)
+        self.assertLess(abs(out[0]), 1e-6)  # 페이드로 시작
+        self.assertEqual(len(trim(np.zeros(sr, np.float32), sr)), sr)  # 무음은 그대로
+
+    def test_japanese_units(self):
+        text = "参加希望の方は今週の金曜日までに名前と希望する時間帯を書き込んでください。"
+        units = [u for u in JA_UNIT.split(text) if u]
+        self.assertEqual("".join(units), text)
+        self.assertIn("書き込んでください。", units)  # 히라가나 앞에서는 끊지 않는다
 
 
 if __name__ == "__main__":
