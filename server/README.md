@@ -20,9 +20,15 @@ Gemini나 MeloTTS로 넘어갑니다.
    ```
    처음 실행할 때 `supertonic` 패키지가 Hugging Face에서 원본 모델(텍스트 처리기, 길이 예측기, 텍스트 인코더, 목소리)을
    `~/.cache/supertonic3`로 내려받습니다.
-3. **카드용 모델**: `st_est.axmodel`(72 MB)과 `st_voc.axmodel`(29 MB)을 한 폴더에 둡니다. 저장소에는 넣지 않았습니다.
+3. **카드용 모델**: Hugging Face [jonpark0/supertonic-3-AX650](https://huggingface.co/jonpark0/supertonic-3-AX650)에서 내려받습니다.
+   `st_est.axmodel`(72 MB), `st_voc.axmodel`(29 MB)과 호스트용 `st_rope_T96_L96.onnx`, `time_table.npy`가 들어 있고,
+   이 폴더를 그대로 `--models`로 씁니다.
+   ```bash
+   git lfs install
+   git clone https://huggingface.co/jonpark0/supertonic-3-AX650 /path/to/models
+   ```
    직접 만드는 방법은 [convert/README.md](convert/README.md)에 있습니다.
-   `st_rope_T96_L96.onnx`와 `time_table.npy`는 `server/assets/`에 들어 있습니다.
+   모델 가중치는 원본과 같은 OpenRAIL-M 라이선스로, 사용 제한(합성 음성임을 밝히기 등)이 함께 적용됩니다.
 
 ## 실행
 

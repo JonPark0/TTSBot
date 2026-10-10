@@ -156,9 +156,11 @@ npm start       # node dist/index.js
 
 M5Stack LLM-8850(Axera AX8850) 카드가 꽂힌 PC에서 `server/` 의 TTS 서버를 띄우고 `LOCAL_TTS_URL` 을 지정하면,
 카드를 기본 TTS로 쓰고 Gemini/MeloTTS는 백업이 됩니다. 설치·모델·API는 [server/README.md](server/README.md) 를 보세요.
+카드용 모델은 Hugging Face [jonpark0/supertonic-3-AX650](https://huggingface.co/jonpark0/supertonic-3-AX650) 에 있습니다.
 
 ```bash
 # 카드가 있는 PC에서
+git clone https://huggingface.co/jonpark0/supertonic-3-AX650 /path/to/models   # git lfs install 필요
 python -m server.tts_server --models /path/to/models --host 0.0.0.0   # 봇이 Docker면 0.0.0.0 + TTS_SERVER_TOKEN 권장
 # .env
 LOCAL_TTS_URL=http://host.docker.internal:8850   # Docker 없이 같은 PC면 http://127.0.0.1:8850
