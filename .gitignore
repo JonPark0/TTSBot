@@ -4,3 +4,7 @@ data/
 .env
 *.log
 npm-debug.log*
+__pycache__/
+*.pyc
+.venv/
+server/models/

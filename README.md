@@ -1,8 +1,10 @@
-# Discord TTS Bot (Gemini TTS + Cloudflare Workers AI)
+# Discord TTS Bot (LLM-8850 Supertonic + Gemini TTS + Cloudflare Workers AI)
 
 지정한 텍스트 채널의 메시지를, **그 메시지를 쓴 사람이 들어가 있는 음성 채널**에서
-읽어 주는 Discord 봇입니다. TTS는 다음 두 가지를 씁니다.
+읽어 주는 Discord 봇입니다. TTS는 다음 세 가지를 씁니다.
 
+- **로컬 Supertonic 3** (LLM-8850 카드, 선택): `LOCAL_TTS_URL` 이 있으면 기본으로 사용.
+  비용 없이 한 메시지 약 0.2초. 서버가 꺼져 있거나 중국어일 때만 아래로 넘어갑니다 → [server/README.md](server/README.md)
 - **Google Gemini TTS** (BAZE API Gateway 경유, 선택): `BAZE_API_KEY` 가 있으면 기본으로 사용
 - **Cloudflare Workers AI `@cf/myshell-ai/melotts`** (한국어 지원, 무료 한도 내 사용 가능):
   키가 없을 때의 기본값이자, Gemini 실패·일시 중지·크레딧 한도 초과 시 **자동 백업**
@@ -60,12 +62,16 @@ cp .env.example .env
 | --- | --- | --- |
 | `DISCORD_TOKEN` | — | 봇 토큰 (필수) |
 | `DISCORD_CLIENT_ID` | — | 애플리케이션 ID, 슬래시 명령 등록에 사용 (필수) |
-| `CF_ACCOUNT_ID` | — | Cloudflare 계정 ID (필수) |
-| `CF_API_TOKEN` | — | Workers AI 권한 토큰 (필수) |
+| `LOCAL_TTS_URL` | (없음) | 로컬 카드 TTS 서버 주소. 있으면 카드를 기본으로 사용 |
+| `LOCAL_TTS_VOICE` | (서버 기본, F1) | 목소리 `F1`–`F5`(여), `M1`–`M5`(남) |
+| `LOCAL_TTS_TOKEN` | (없음) | 서버의 `TTS_SERVER_TOKEN` 과 같은 값 |
+| `LOCAL_TTS_TIMEOUT_MS` | `10000` | 카드 서버 요청 시간 제한 |
+| `CF_ACCOUNT_ID` | — | Cloudflare 계정 ID (`TTS_PROVIDER=local` 이 아니면 필수) |
+| `CF_API_TOKEN` | — | Workers AI 권한 토큰 (`TTS_PROVIDER=local` 이 아니면 필수) |
 | `CF_TTS_MODEL` | `@cf/myshell-ai/melotts` | 사용할 TTS 모델 ID |
 | `CF_GATEWAY_URL` | (없음) | AI Gateway 경유 시 베이스 URL |
 | `BAZE_API_KEY` | (없음) | BAZE API Gateway 키. 있으면 Gemini TTS를 기본으로 사용 |
-| `TTS_PROVIDER` | 키 있으면 `baze`, 없으면 `cloudflare` | `baze` (Gemini → 실패 시 MeloTTS) / `cloudflare` (MeloTTS만) |
+| `TTS_PROVIDER` | `LOCAL_TTS_URL` 있으면 `local`, 키 있으면 `baze`, 없으면 `cloudflare` | `local` (카드 → Gemini → MeloTTS) / `baze` (Gemini → 실패 시 MeloTTS) / `cloudflare` (MeloTTS만) |
 | `BAZE_BASE_URL` | `https://factchat-cloud.mindlogic.ai/v1/gateway` | 게이트웨이 주소 |
 | `BAZE_TTS_MODEL` | `gemini-3.1-flash-tts-preview` | Gemini TTS 모델 |
 | `BAZE_TTS_VOICE` | `Kore` | 목소리 (여: Kore, Aoede, Leda… / 남: Charon, Puck, Fenrir…) |
@@ -75,7 +81,7 @@ cp .env.example .env
 | `TTS_QUEUE_MAX` | `20` | 서버별 대기 큐 최대 길이 |
 | `TTS_IDLE_TIMEOUT_MS` | `300000` | 읽을 게 없을 때 음성 채널에서 나가기까지의 시간 |
 | `TTS_READ_CUSTOM_EMOJI_NAMES` | `false` | 커스텀 이모지를 이름으로 읽을지 여부 |
-| `TTS_DAILY_CHAR_LIMIT` | `100000` | 봇 전체 일일 문자 수 상한 (0이면 비활성) |
+| `TTS_DAILY_CHAR_LIMIT` | `100000` | 클라우드 TTS 일일 문자 수 상한 (0이면 비활성). 카드로 읽은 메시지는 세지 않음 |
 | `TTS_GAIN_KR` / `_JP` / `_EN` | `1` | 언어별 재생 음량 배율 (0 초과 10 이하, **MeloTTS 출력에만** 적용) |
 | `TTS_GAIN_ZH` | `4` | 중국어 재생 음량 배율 (MeloTTS 중국어 출력이 4~5배 작음, MeloTTS에만 적용) |
 | `DATA_DIR` | `./data` | 설정/사용량 저장 경로 |
@@ -146,6 +152,35 @@ npm start       # node dist/index.js
 화이트리스트에 없는 특수문자·기호 → 공백 처리 후 공백 정리 및 길이 제한.
 스티커 · 이미지 · GIF 등 첨부는 본문에 텍스트가 없으면 그대로 무시됩니다.
 
+## 로컬 TTS: LLM-8850 카드의 Supertonic 3
+
+M5Stack LLM-8850(Axera AX8850) 카드가 꽂힌 PC에서 `server/` 의 TTS 서버를 띄우고 `LOCAL_TTS_URL` 을 지정하면,
+카드를 기본 TTS로 쓰고 Gemini/MeloTTS는 백업이 됩니다. 설치·모델·API는 [server/README.md](server/README.md) 를 보세요.
+카드용 모델은 Hugging Face [jonpark0/supertonic-3-AX650](https://huggingface.co/jonpark0/supertonic-3-AX650) 에 있습니다.
+
+```bash
+# 카드가 있는 PC에서
+git clone https://huggingface.co/jonpark0/supertonic-3-AX650 /path/to/models   # git lfs install 필요
+python -m server.tts_server --models /path/to/models --host 0.0.0.0   # 봇이 Docker면 0.0.0.0 + TTS_SERVER_TOKEN 권장
+# .env
+LOCAL_TTS_URL=http://host.docker.internal:8850   # Docker 없이 같은 PC면 http://127.0.0.1:8850
+```
+
+| 상황 | 동작 |
+| --- | --- |
+| 카드 서버 정상 | 카드로 읽음 (일일 문자 수 상한에 세지 않음) |
+| 중국어 메시지 (Supertonic 미지원) | 그 메시지만 Gemini/MeloTTS |
+| 서버 꺼짐 · 5xx · 시간 초과 | Gemini/MeloTTS 사용, 카드는 **30초간** 건너뜀 (`WARN` 로그) |
+| 토큰 불일치·없는 목소리 등 설정 문제 (4xx) | Gemini/MeloTTS 사용, 카드는 **30분간** 건너뜀 (`ERROR` 로그) |
+| 정규화 후 읽을 내용 없음 (`ㅠㅠ` 등) | 읽지 않음 |
+
+`CF_*` 와 `BAZE_API_KEY` 는 이때 선택입니다. 둘 다 없으면 카드만 쓰고, 서버가 꺼져 있는 동안의 메시지는 읽지 않습니다.
+카드 하나로 메시지당 약 0.18초(긴 메시지는 조각마다 0.18초)라 여러 서버에서 동시에 써도 대기열이 짧습니다.
+
+```bash
+node dist/probe.js "ㅇㅋ 10분 뒤에 들어갈게" kr local   # 카드 서버만으로 합성해 /tmp/probe-kr.wav 저장
+```
+
 ## Gemini TTS와 MeloTTS 백업
 
 `BAZE_API_KEY` 가 설정되어 있으면 메시지마다 먼저 Gemini TTS를 호출하고, 다음 경우에는
@@ -212,7 +247,8 @@ cf ai run @cf/myshell-ai/melotts --prompt "안녕하세요" --lang kr
 - 슬래시 명령어는 봇이 시작할 때와 새 서버에 들어갈 때 **서버별로 자동 등록**됩니다.
   명령어를 바꿨다면 `docker compose up -d --build` 로 재시작만 하면 바로 반영됩니다.
   (예전에 전역으로 등록된 명령어가 있으면 시작 시 자동으로 지워 중복 표시를 막습니다.)
-- 테스트: `npm test` (네트워크 없이 가짜 응답으로 Gemini 호출·백업 전환·크레딧 상한을 검사)
+- 테스트: `npm test` (네트워크 없이 가짜 응답으로 카드 서버·Gemini 호출, 백업 전환, 크레딧 상한을 검사),
+  `python -m unittest server.test_textnorm` (카드 서버의 텍스트 정규화)
 - `melotts` 의 `lang` 매핑은 `src/tts/cloudflare.ts` 의 `LANG_MAP` 에서 조정합니다.
 - 설정과 일일 사용량은 `store.json` 에 저장됩니다 (Docker: named volume `tts-data`,
   로컬: `DATA_DIR`). 내용 확인: `docker compose exec tts-bot cat /app/data/store.json`
