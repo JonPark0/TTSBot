@@ -8,6 +8,7 @@ NPU로 가는 것: 추정기(속도장 v만 출력, 시간 임베딩은 입력�
   python st_export.py voc4d  --T 96 --L 96   # 보코더 1D conv → 2D (Pulsar2 TileFail 회피)
   python st_export.py check  --T 96 --L 96   # 동적 원본 대 정적 그래프(같은 잡음) 비교
   python st_export.py calib  --T 96 --L 96   # Pulsar2 보정 tar (NumpyObject)
+  긴 버킷(L > 96)은 같은 순서에 --T/--L만 바꾼다. 보정은 CALIB_LONG으로, check는 --sentences long_test.jsonl로.
 
 경로: ST_ROOT(기본 /NHNHOME/ttsspike), ST_ONNX(원본 supertonic-3 onnx 폴더), ST_WORK(출력 폴더).
 """
@@ -44,6 +45,25 @@ CALIB_TEXTS = [  # 시험 문장과 겹치지 않는 보정용 문장
     ("en", "Let's take a short break and come back in five."), ("en", "Who wants to join the next match?"),
     ("en", "The stream audio is a little too quiet."), ("en", "I forgot to save my progress again."),
 ]
+# L가 96보다 큰 버킷용. 짧은 조각은 96 버킷이 맡으므로 96프레임을 넘는 위치까지 실제 값이 들어가는 긴 문장으로 보정한다.
+CALIB_LONG = [
+    ("ko", "어제는 하루 종일 비가 와서 집에서 밀린 드라마를 보다가 저녁에는 친구들이랑 전화로 한참 수다를 떨었어요."),
+    ("ko", "이번 프로젝트는 일정이 빠듯하니까 매일 아침 열 시에 짧게 진행 상황을 공유하고 막히는 부분은 바로 이야기해 주세요"),
+    ("ko", "내일 아침 일찍 출발해야 하니까 오늘은 일찍 자고 짐은 미리 현관 앞에 챙겨 두는 게 좋을 것 같아"),
+    ("ko", "새로 이사 간 동네는 공원이 가까워서 저녁마다 산책하기 좋은데, 마트가 조금 멀어서 장 보러 갈 때는 불편해요."),
+    ("ko", "그 게임 처음에는 어렵다고 느꼈는데 몇 시간 하다 보니까 조작에 익숙해져서 지금은 오히려 너무 재밌어"),
+    ("ko", "다음 달 워크숍 장소가 바뀌어서 다시 안내드립니다. 첫날은 오전 아홉 시까지 본관 삼 층 대회의실로 오시면 됩니다."),
+    ("ko", "오늘 오후에 있었던 발표는 준비한 자료가 많아서 시간이 조금 부족했지만, 질문도 많이 나오고 반응도 좋아서 전체적으로는 꽤 성공적이었다고 생각합니다."),
+    ("ko", "주말 동안 산에 다녀왔는데 단풍이 절정이라 사람이 정말 많았어 정상까지 세 시간 넘게 걸렸지만 내려다보는 경치가 너무 좋아서 하나도 힘들지 않았어"),
+    ("ja", "昨日は一日中雨だったので、家で映画を三本見て、夜は友達とオンラインでゲームをしていました。"),
+    ("ja", "新しいプロジェクトのスケジュールが決まったので、各自担当する部分を確認して、来週の月曜日までに返事をください。"),
+    ("ja", "駅前に新しくできたラーメン屋さんはいつも行列ができていて、平日の昼でも三十分くらい待つそうです。"),
+    ("ja", "今日の打ち合わせでは、来月の発表会の進め方について話し合い、それぞれの担当と締め切りを決めました。"),
+    ("en", "We moved the weekly sync to Wednesday afternoon because half the team has a conflict on Monday mornings this month."),
+    ("en", "The new patch changed how the healing items work, so you might want to rethink your build before the next ranked match."),
+    ("en", "I left my charger at the office yesterday, so if my phone dies during the call, I'll switch to my laptop and rejoin."),
+    ("en", "Thanks for waiting, everyone. The stream had some audio problems earlier, but I think we fixed them, so let me know if you can hear me."),
+]
 VOICES = ["F1", "M1"]
 
 
@@ -68,8 +88,8 @@ def front(eng, style, text, lang):
     return ids, tmask, emb, lat_len, wav_len
 
 
-def sentences():
-    for l in open(TS / "data/sentences.jsonl", encoding="utf-8"):
+def sentences(path=None):
+    for l in open(path or TS / "data/sentences.jsonl", encoding="utf-8"):
         if l.strip():
             yield json.loads(l)
 
@@ -83,15 +103,20 @@ def pad(x, n, axis=-1):
 def cmd_measure(a):
     tts, eng = engine()
     rows = []
+    items = [(s["id"], s["lang"], s["text"]) for s in sentences(a.sentences)]
+    items += [(f"calib_long{i:02d}", lang, text) for i, (lang, text) in enumerate(CALIB_LONG)]
     for v in VOICES:
         st = tts.get_voice_style(v)
-        for s in sentences():
-            ids, _, _, lat, _ = front(eng, st, s["text"], s["lang"])
-            rows.append((s["id"], v, ids.shape[1], lat))
-    t = np.array([r[2] for r in rows]); l = np.array([r[3] for r in rows])
-    print(f"text_ids len: max {t.max()} p95 {np.percentile(t, 95):.0f} mean {t.mean():.1f}")
-    print(f"latent len  : max {l.max()} p95 {np.percentile(l, 95):.0f} mean {l.mean():.1f}  (~14.4 frames/s)")
-    print("longest:", sorted(rows, key=lambda r: -r[3])[:4])
+        for sid, lang, text in items:
+            ids, _, _, lat, _ = front(eng, st, text, lang)
+            rows.append((sid, lang, v, ids.shape[1], lat))
+    for lang in sorted({r[1] for r in rows}):
+        rs = [r for r in rows if r[1] == lang]
+        t = np.array([r[3] for r in rs]); l = np.array([r[4] for r in rs])
+        print(f"{lang}: n {len(rs)}  text_ids max {t.max()} mean {t.mean():.1f}  latent max {l.max()} mean {l.mean():.1f}"
+              f"  ids/frame max {(t / l).max():.2f} mean {(t / l).mean():.2f}")
+    for r in rows:
+        print(*r)
 
 
 def replace_edge_pads(m):
@@ -337,9 +362,15 @@ def cmd_check(a):
     st = Static(sess(W / f"st_est_T{a.T}_L{a.L}.onnx"), sess(W / f"st_voc_L{a.L}.onnx"), a.T, a.L)
     style = tts.get_voice_style("F1")
     rng = np.random.default_rng(0)
-    picks = [s for s in sentences() if s["id"] in ("k01", "k09", "k17", "c01", "c03", "c14", "j02", "j08", "e02", "e05")]
+    if a.sentences:  # 긴 버킷: 그 버킷에 들어가는 문장만
+        picks = list(sentences(a.sentences))
+    else:
+        picks = [s for s in sentences() if s["id"] in ("k01", "k09", "k17", "c01", "c03", "c14", "j02", "j08", "e02", "e05")]
     for s in picks:
         ids, tmask, emb, lat, wl = front(eng, style, s["text"], s["lang"])
+        if ids.shape[1] > a.T or lat > a.L:
+            print(f"{s['id']}: T={ids.shape[1]} L={lat}  skipped (does not fit)")
+            continue
         noise = rng.standard_normal((1, 144, lat)).astype(np.float32)
         ref = dynamic(eng, noise, emb, tmask, style, lat, wl)
         out, _ = st(noise, emb, tmask, style.ttl, lat, wl)
@@ -361,7 +392,7 @@ def cmd_calib(a):
     dump = []
     for v in VOICES:
         style = tts.get_voice_style(v)
-        for lang, text in CALIB_TEXTS:
+        for lang, text in (CALIB_TEXTS if a.L <= 96 else CALIB_LONG):
             ids, tmask, emb, lat, wl = front(eng, style, text, lang)
             assert ids.shape[1] <= a.T and lat <= a.L, (text, ids.shape, lat)
             st(rng.standard_normal((1, 144, lat)).astype(np.float32), emb, tmask, style.ttl, lat, wl, dump=dump)
@@ -379,5 +410,6 @@ if __name__ == "__main__":
     p.add_argument("cmd", choices=["measure", "export", "check", "calib", "voc4d"])
     p.add_argument("--T", type=int, default=64)
     p.add_argument("--L", type=int, default=128)
+    p.add_argument("--sentences", help="measure/check에 쓸 jsonl (기본: ST_ROOT/data/sentences.jsonl)")
     a = p.parse_args()
     globals()[f"cmd_{a.cmd}"](a)

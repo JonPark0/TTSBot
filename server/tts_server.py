@@ -2,7 +2,7 @@
 
   python -m server.tts_server --models <모델 폴더> [--backend ax|ort] [--host 127.0.0.1] [--port 8850]
 
-  GET  /health  → {"ok": true, "backend": "ax", "voices": [...], "langs": [...]}
+  GET  /health  → {"ok": true, "backend": "ax", "buckets": [[96, 96], [192, 192]], "voices": [...], "langs": [...]}
   POST /tts     {"text": "...", "lang": "kr", "voice": "F1"}  → audio/wav (44.1 kHz 모노 16비트)
                 X-TTS-Gen-Ms, X-TTS-Audio-S, X-TTS-Pieces 헤더에 생성 시간·음성 길이·조각 수
        422 {"error": "unsupported_language"}  봇은 이 메시지만 다른 공급자로 넘긴다 (서버 고장 아님)
@@ -25,7 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import numpy as np
 
-from .engine import Engine
+from .engine import Engine, parse_buckets
 from .textnorm import normalize
 
 log = logging.getLogger("tts_server")
@@ -46,7 +46,8 @@ class Service:
     def __init__(self, args):
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="synth")
         # 카드 세션은 합성 스레드에서 만들어야 그 스레드의 AXCL 문맥에 묶인다
-        self.engine = self.worker.submit(Engine, args.models, args.backend, args.voc_backend, args.threads).result()
+        self.engine = self.worker.submit(Engine, args.models, args.backend, args.voc_backend, args.threads,
+                                         buckets=parse_buckets(args.buckets)).result()
         self.voices = self.engine.voices()
         self.default_voice = args.voice if args.voice in self.voices else self.voices[0]
         self.max_chars = args.max_chars
@@ -88,7 +89,8 @@ def make_handler(svc):
             if not self._authorized():
                 return
             if self.path.rstrip("/") == "/health":
-                return self._json(200, {"ok": True, "backend": svc.engine.backend, "voices": svc.voices,
+                return self._json(200, {"ok": True, "backend": svc.engine.backend, "buckets": svc.engine.bucket_sizes,
+                                        "voices": svc.voices,
                                         "default_voice": svc.default_voice, "langs": sorted(set(LANGS))})
             self._json(404, {"error": "not_found"})
 
@@ -145,6 +147,8 @@ def main():
     p.add_argument("--voice", default=os.environ.get("TTS_VOICE", "F1"))
     p.add_argument("--host", default=os.environ.get("TTS_HOST", "127.0.0.1"))
     p.add_argument("--port", type=int, default=int(os.environ.get("TTS_PORT", "8850")))
+    p.add_argument("--buckets", default=os.environ.get("TTS_BUCKETS"),
+                   help="쓸 버킷의 L 목록, 예: 96 또는 96,192 (기본: models 폴더에 있는 것 전부)")
     p.add_argument("--threads", type=int, default=1, help="호스트 쪽 ONNX 스레드 수")
     p.add_argument("--max-chars", type=int, default=300)
     p.add_argument("--log-level", default=os.environ.get("LOG_LEVEL", "info"))
@@ -162,8 +166,8 @@ def main():
 
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
-    log.info("listening on http://%s:%d (backend %s, voice %s, %d voices)", args.host, args.port,
-             svc.engine.backend, svc.default_voice, len(svc.voices))
+    log.info("listening on http://%s:%d (backend %s, buckets %s, voice %s, %d voices)", args.host, args.port,
+             svc.engine.backend, svc.engine.bucket_sizes, svc.default_voice, len(svc.voices))
     try:
         httpd.serve_forever()
     finally:
