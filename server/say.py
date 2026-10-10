@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .engine import Engine
+from .engine import Engine, parse_buckets
 from .textnorm import normalize
 
 
@@ -25,6 +25,7 @@ def main():
     p.add_argument("--backend", choices=["ax", "ort"], default="ax")
     p.add_argument("--voc-backend", choices=["ax", "ort"], default=None)
     p.add_argument("--voice", default="F1")
+    p.add_argument("--buckets", help="쓸 버킷의 L 목록, 예: 96 또는 96,192 (기본: models 폴더에 있는 것 전부)")
     p.add_argument("--out", required=True)
     p.add_argument("--jsonl", help="입력 JSONL (id, text, lang)")
     p.add_argument("--field", default="text", help="JSONL에서 읽을 글 필드 (예: raw)")
@@ -40,8 +41,8 @@ def main():
         items = [(f"m{i:03d}", m, None) for i, m in enumerate(msgs)]
 
     t0 = time.perf_counter()
-    eng = Engine(a.models, a.backend, a.voc_backend)
-    print(f"load {time.perf_counter() - t0:.1f}s, backend {eng.backend}", flush=True)
+    eng = Engine(a.models, a.backend, a.voc_backend, buckets=parse_buckets(a.buckets))
+    print(f"load {time.perf_counter() - t0:.1f}s, backend {eng.backend}, buckets {eng.bucket_sizes}", flush=True)
     eng.synth("준비", "ko", a.voice, 0)
     out = Path(a.out); (out / "wav").mkdir(parents=True, exist_ok=True)
     with open(out / "timings.jsonl", "w", encoding="utf-8") as f:
@@ -57,7 +58,8 @@ def main():
             f.write(json.dumps({"id": id_, "lang": lang, "input": raw, "spoken": text, **info}, ensure_ascii=False) + "\n")
             print(id_, lang, f"{info['gen_s']:.3f}s for {info['audio_s']:.2f}s, {len(info['pieces'])} piece(s):",
                   " | ".join(pc["text"] for pc in info["pieces"]), flush=True)
-    (out / "meta.json").write_text(json.dumps({"model": "Supertone/supertonic-3", "voice": a.voice, "backend": eng.backend}))
+    (out / "meta.json").write_text(json.dumps({"model": "Supertone/supertonic-3", "voice": a.voice, "backend": eng.backend,
+                                               "buckets": eng.bucket_sizes}))
     eng.close()
 
 
