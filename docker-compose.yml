@@ -1,7 +1,14 @@
 # Docker Compose V2 (no top-level "version:" key needed)
 services:
   tts-bot:
+    # Built by GitHub Actions (.github/workflows/image.yml) and pulled from
+    # GHCR; IMAGE_TAG=sha-<commit> in the environment runs an earlier build.
+    # `build` stays for working locally: `docker compose up --build`.
+    image: ghcr.io/jonpark0/ttsbot:${IMAGE_TAG:-main}
     build: .
+    labels:
+      # deployed by hand from our own builds, so Diun needn't watch it
+      diun.enable: "false"
     container_name: discord-cf-tts-bot
     restart: unless-stopped
     env_file: .env
