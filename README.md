@@ -1,19 +1,21 @@
-# Discord TTS Bot (LLM-8850 Supertonic + Gemini TTS + Cloudflare Workers AI)
+# Discord TTS Bot (LLM-8850 Supertonic + Gemini TTS + Cloudflare Workers AI + Google Cloud TTS)
 
 지정한 텍스트 채널의 메시지를, **그 메시지를 쓴 사람이 들어가 있는 음성 채널**에서
-읽어 주는 Discord 봇입니다. TTS는 다음 세 가지를 씁니다.
+읽어 주는 Discord 봇입니다. TTS는 다음 네 가지를 씁니다.
 
 - **로컬 Supertonic 3** (LLM-8850 카드, 선택): `LOCAL_TTS_URL` 이 있으면 기본으로 사용.
   비용 없이 한 메시지 약 0.2초. 서버가 꺼져 있거나 중국어일 때만 아래로 넘어갑니다 → [server/README.md](server/README.md)
 - **Google Gemini TTS** (BAZE API Gateway 경유, 선택): `BAZE_API_KEY` 가 있으면 기본으로 사용
 - **Cloudflare Workers AI `@cf/myshell-ai/melotts`** (한국어 지원, 무료 한도 내 사용 가능):
   키가 없을 때의 기본값이자, Gemini 실패·일시 중지·크레딧 한도 초과 시 **자동 백업**
+- **Google Cloud Text-to-Speech** (선택): MeloTTS에 목소리가 없는 **독일어·이탈리아어**만 읽습니다
+  (`GOOGLE_TTS_API_KEY`) → [독일어·이탈리아어](#독일어이탈리아어-google-cloud-tts)
 
 ## 기능
 
 - 관리자가 `/tts-channel set` 으로 TTS 채널을 지정
 - 해당 채널의 메시지를 작성자의 음성 채널에서 음성으로 출력
-- 한국어 / 영어 / 중국어 / 일본어 **자동 감지** 후 해당 언어로 합성
+- 한국어 / 영어 / 중국어 / 일본어 / 독일어 / 이탈리아어 **자동 감지** 후 해당 언어로 합성
 - 이모지, 커스텀 이모지, 스티커, GIF/이미지 첨부, URL, 디스코드 마크다운,
   멘션, 스포일러, 특수문자/기타 유니코드 기호 **자동 정리(Sanitization)**
 - 무료 한도 보호용 **일일 문자 수 상한**, Gemini **일일 크레딧 상한**, 메시지 길이 제한, 큐 길이 제한
@@ -46,6 +48,13 @@
 2. 키 확인: `curl -H "Authorization: Bearer <KEY>" https://factchat-cloud.mindlogic.ai/v1/gateway/credits/`
 3. 키가 없으면 이 단계는 건너뛰어도 되며, 봇은 MeloTTS만 사용합니다.
 
+### 4. (선택) 독일어·이탈리아어 — Google Cloud Text-to-Speech
+
+1. Google Cloud 콘솔에서 프로젝트를 고르고 **Cloud Text-to-Speech API** 를 사용 설정
+2. **API 및 서비스 → 사용자 인증 정보 → API 키 만들기** → 키 제한에서 API를
+   **Cloud Text-to-Speech API** 하나로 제한 → `GOOGLE_TTS_API_KEY`
+3. 키가 없으면 독일어·이탈리아어 메시지는 읽지 않습니다 (다른 언어 목소리로 엉터리로 읽지 않도록).
+
 ## 설정
 
 ```bash
@@ -76,7 +85,10 @@ cp .env.example .env
 | `BAZE_TTS_MODEL` | `gemini-3.1-flash-tts-preview` | Gemini TTS 모델 |
 | `BAZE_TTS_VOICE` | `Kore` | 목소리 (여: Kore, Aoede, Leda… / 남: Charon, Puck, Fenrir…) |
 | `BAZE_DAILY_CREDIT_LIMIT` | `900` | Gemini 일일 크레딧 상한, 넘으면 그날은 MeloTTS (0이면 비활성) |
-| `TTS_DEFAULT_LANG` | `kr` | 언어 감지 실패 시 사용할 언어 (`kr`/`en`/`zh`/`jp`) |
+| `GOOGLE_TTS_API_KEY` | (없음) | Google Cloud TTS 키 (Text-to-Speech API만 허용). 독일어·이탈리아어에만 사용 |
+| `GOOGLE_TTS_VOICE_DE` / `_IT` | `de-DE-Chirp3-HD-Kore` / `it-IT-Chirp3-HD-Kore` | 언어별 목소리. 언어는 이름 앞부분에서 정해짐 |
+| `GOOGLE_TTS_DAILY_CHAR_LIMIT` | `30000` | Google 일일 문자 수 상한 (0이면 비활성). Chirp 3 HD 무료 한도는 월 100만 자 |
+| `TTS_DEFAULT_LANG` | `kr` | 언어 감지 실패 시 사용할 언어 (`kr`/`en`/`zh`/`jp`/`de`/`it`) |
 | `TTS_MAX_CHARS` | `200` | 한 메시지에서 읽을 최대 글자 수 |
 | `TTS_QUEUE_MAX` | `20` | 서버별 대기 큐 최대 길이 |
 | `TTS_IDLE_TIMEOUT_MS` | `300000` | 읽을 게 없을 때 음성 채널에서 나가기까지의 시간 |
@@ -140,7 +152,10 @@ npm start       # node dist/index.js
 - 히라가나/가타카나 포함 → 일본어(`jp`)
 - 한글 포함 → 한국어(`kr`)
 - 한자만 포함 → 중국어(`zh`)
-- 라틴 문자 → 영어(`en`)
+- 라틴 문자 → 기본은 영어(`en`). `ä ö ü ß` 가 있거나 독일어 기능어(ich, und, nicht, danke…)가
+  영어·이탈리아어보다 많으면 독일어(`de`), 이탈리아어 기능어(ciao, grazie, che, non, sono…)가
+  더 많으면 이탈리아어(`it`). 세 언어에 같이 쓰이는 단어(in, so, die, come…)는 세지 않으므로
+  애매하면 영어입니다.
 - 그 외 → `TTS_DEFAULT_LANG`
 
 ## 정리(Sanitization) 대상
@@ -200,6 +215,30 @@ node dist/probe.js "ㅇㅋ 10분 뒤에 들어갈게" kr local   # 카드 서버
   (출력 토큰 ≈ 오디오 1초당 32개).
 - 오늘 사용량은 `/tts-channel status` 에서 확인할 수 있습니다.
 
+## 독일어·이탈리아어 (Google Cloud TTS)
+
+MeloTTS는 `en`, `es`, `fr`, `jp`, `kr`, `zh` 만 말할 수 있어 독일어·이탈리아어는 Google Cloud
+Text-to-Speech로 읽습니다. 다른 언어는 지금처럼 `TTS_PROVIDER` 순서를 따릅니다.
+
+| 상황 | 동작 |
+| --- | --- |
+| `de` / `it` 메시지 | Google → 실패 시 Gemini(`TTS_PROVIDER` 가 `local`/`baze` 일 때) → 그래도 안 되면 **읽지 않음** |
+| 400 / 401 / 403 (키·목소리 오류) | 그 메시지는 위 순서대로, Google을 **30분간** 건너뜀 (`ERROR` 로그) |
+| 429 / 5xx / 시간 초과(10초) / 네트워크 오류 | 같은 순서, Google을 **60초간** 건너뜀 (`WARN` 로그) |
+| 오늘 Google 사용량 ≥ `GOOGLE_TTS_DAILY_CHAR_LIMIT` | 00:00 UTC까지 Google을 쓰지 않음 (하루 한 번 `WARN`) |
+| `GOOGLE_TTS_API_KEY` 없음 | 읽지 않음 (처음 한 번 `WARN`) |
+
+- MeloTTS로 넘기지 않는 이유: 독일어 문장을 다른 언어 목소리로 읽으면 알아들을 수 없습니다.
+- 응답은 `LINEAR16` WAV(Chirp 3 HD는 24kHz 모노 16비트)를 base64로 받습니다. 키는 URL이 아닌
+  `X-Goog-Api-Key` 헤더로 보내 오류 메시지에 남지 않습니다.
+- Google로 읽은 글자는 `TTS_DAILY_CHAR_LIMIT` 에도, `GOOGLE_TTS_DAILY_CHAR_LIMIT` 에도 셉니다.
+  오늘 사용량은 `/tts-channel status` 에서 볼 수 있습니다.
+
+```bash
+docker compose exec tts-bot node dist/probe.js "Guten Morgen! Wie geht es dir heute?" de google
+docker compose exec tts-bot node dist/probe.js "Ciao a tutti! Arrivo tra dieci minuti." it google
+```
+
 ## 문제 해결
 
 ### 언어별 동작 현황 (2026-10-02 검증)
@@ -221,7 +260,7 @@ node dist/probe.js "ㅇㅋ 10분 뒤에 들어갈게" kr local   # 카드 서버
 
 ```bash
 # 컨테이너 안에서 직접 합성해 결과를 저장 (확장자는 응답 형식에 맞춰 결정됨)
-# 세 번째 인자: auto(기본, Gemini → MeloTTS) | baze(Gemini만) | cloudflare(MeloTTS만)
+# 세 번째 인자: auto(기본, Gemini → MeloTTS) | baze(Gemini만) | cloudflare(MeloTTS만) | google(de/it, Google만)
 docker compose exec tts-bot node dist/probe.js "안녕하세요 테스트입니다" kr
 docker compose exec tts-bot node dist/probe.js "안녕하세요 테스트입니다" kr baze
 docker compose exec tts-bot node dist/probe.js "你好，这是一个测试。" zh cloudflare

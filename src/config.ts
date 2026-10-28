@@ -34,6 +34,8 @@ function boolean(name: string, fallback: boolean): boolean {
 }
 
 export type TtsProvider = 'local' | 'baze' | 'cloudflare';
+/** Who synthesized a message: a TTS_PROVIDER value, or Google for German / Italian. */
+export type TtsSource = TtsProvider | 'google';
 
 const localTtsUrl = optional('LOCAL_TTS_URL', '');
 const bazeApiKey = optional('BAZE_API_KEY', '');
@@ -101,6 +103,18 @@ export const config = {
   // Soft daily credit budget for Gemini TTS (resets at 00:00 UTC). 0 disables it.
   // Default ~= 30,000 monthly credits / 31 days.
   bazeDailyCreditLimit: number('BAZE_DAILY_CREDIT_LIMIT', 900),
+
+  // Google Cloud Text-to-Speech, for the languages MeloTTS can't speak (German, Italian). No key =
+  // those messages go to Gemini when it is in the chain, else they are skipped. Voices are
+  // Chirp 3 HD by default (Kore, the Gemini voice's name); the language comes from the voice name.
+  googleTtsApiKey: optional('GOOGLE_TTS_API_KEY', ''),
+  googleVoices: {
+    de: optional('GOOGLE_TTS_VOICE_DE', 'de-DE-Chirp3-HD-Kore'),
+    it: optional('GOOGLE_TTS_VOICE_IT', 'it-IT-Chirp3-HD-Kore'),
+  } as Record<string, string>,
+  // Daily character budget for Google (resets at 00:00 UTC; 0 disables it). The Chirp 3 HD free
+  // tier is 1M characters a month, so 30,000 a day stays inside it.
+  googleDailyCharLimit: number('GOOGLE_TTS_DAILY_CHAR_LIMIT', 30000),
   ttsProvider: ttsProvider(),
 
   // TTS behaviour

@@ -1,5 +1,5 @@
 // Shared setup for tests: dummy credentials, a throwaway data dir, and a fake `fetch`
-// that answers the local card server, BAZE and Cloudflare endpoints without touching the network.
+// that answers the local card server, BAZE, Google and Cloudflare endpoints without touching the network.
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -42,6 +42,7 @@ function fakeMeloJson() {
 export interface FetchState {
   baze: 'ok' | 'json200' | 'network' | number;
   local?: 'ok' | 'network' | 'unsupported' | 'empty' | number;
+  google?: 'ok' | 'network' | number;
 }
 
 export interface FetchCalls {
@@ -51,6 +52,9 @@ export interface FetchCalls {
   cloudflare: number;
   bazeBodies: unknown[];
   bazeAuth?: string;
+  google: number;
+  googleBodies: { voice: { languageCode: string; name: string } }[];
+  googleKey?: string;
 }
 
 /**
@@ -59,7 +63,7 @@ export interface FetchCalls {
  * Returns a `calls` record of which endpoints were hit.
  */
 export function installFetch(state: FetchState): FetchCalls {
-  const calls: FetchCalls = { local: 0, localBodies: [], baze: 0, cloudflare: 0, bazeBodies: [] };
+  const calls: FetchCalls = { local: 0, localBodies: [], baze: 0, cloudflare: 0, bazeBodies: [], google: 0, googleBodies: [] };
   globalThis.fetch = async (url, init) => {
     if (String(url).startsWith(LOCAL_URL)) {
       calls.local++;
@@ -92,6 +96,20 @@ export function installFetch(state: FetchState): FetchCalls {
       return new Response(fakePcm(), {
         status: 200,
         headers: { 'content-type': 'audio/pcm', 'x-input-tokens': '13', 'x-output-tokens': '111' },
+      });
+    }
+    if (String(url).startsWith('https://texttospeech.googleapis.com/')) {
+      calls.google++;
+      calls.googleBodies.push(JSON.parse(String(init?.body)));
+      calls.googleKey = (init?.headers as Record<string, string>)['X-Goog-Api-Key'];
+      const mode = state.google ?? 'ok';
+      if (mode === 'network') throw new TypeError('fetch failed');
+      if (typeof mode === 'number') {
+        return new Response(`{"error":{"code":${mode}}}`, { status: mode, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ audioContent: fakeWav().toString('base64') }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
       });
     }
     if (String(url).includes('api.cloudflare.com')) {
