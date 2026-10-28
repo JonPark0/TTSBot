@@ -30,3 +30,10 @@ test('an old store.json without credits still loads', () => {
   assert.equal(typeof usageInfo().credits, 'number');
   assert.ok(Number.isFinite(usageInfo().credits));
 });
+
+test('without GOOGLE_TTS_API_KEY German is dropped, not read by MeloTTS in another voice', async () => {
+  const calls = installFetch({ baze: 'ok' });
+  await assert.rejects(synthesize('Guten Morgen', 'de'), { name: 'SkipError', message: /set GOOGLE_TTS_API_KEY/ });
+  assert.equal(calls.cloudflare, 0);
+  assert.equal(calls.google, 0);
+});

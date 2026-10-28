@@ -13,6 +13,7 @@ interface Usage {
   date: string;
   chars: number;
   credits: number;
+  googleChars: number;
 }
 
 interface State {
@@ -20,7 +21,8 @@ interface State {
   usage: Usage;
 }
 
-// usage.credits counts Gemini (BAZE) TTS credits; it shares the UTC-day reset with chars.
+// usage.credits counts Gemini (BAZE) TTS credits and usage.googleChars the characters sent to
+// Google; both share the UTC-day reset with chars.
 let state: State = { guilds: {}, usage: emptyUsage() };
 let writeTimer: NodeJS.Timeout | null = null;
 let canPersist = true;
@@ -30,7 +32,7 @@ function today() {
 }
 
 function emptyUsage(date = today()): Usage {
-  return { date, chars: 0, credits: 0 };
+  return { date, chars: 0, credits: 0, googleChars: 0 };
 }
 
 function rollDate() {
@@ -68,6 +70,7 @@ export async function initStore() {
               date: String(parsed.usage.date || today()),
               chars: Number(parsed.usage.chars) || 0,
               credits: Number(parsed.usage.credits) || 0, // absent in store.json from older versions
+              googleChars: Number(parsed.usage.googleChars) || 0,
             }
           : emptyUsage(),
     };
@@ -130,6 +133,18 @@ export function addCredits(credits: number) {
   scheduleWrite();
 }
 
+export function canSpendGoogle(chars: number): boolean {
+  rollDate();
+  if (!config.googleDailyCharLimit || config.googleDailyCharLimit <= 0) return true;
+  return state.usage.googleChars + chars <= config.googleDailyCharLimit;
+}
+
+export function addGoogleChars(chars: number) {
+  rollDate();
+  state.usage.googleChars += chars;
+  scheduleWrite();
+}
+
 export function usageInfo() {
   rollDate();
   return {
@@ -138,6 +153,8 @@ export function usageInfo() {
     limit: config.dailyCharLimit,
     credits: state.usage.credits,
     creditLimit: config.bazeDailyCreditLimit,
+    googleChars: state.usage.googleChars,
+    googleLimit: config.googleDailyCharLimit,
   };
 }
 

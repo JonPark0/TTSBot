@@ -120,6 +120,12 @@ export async function handleInteraction(interaction: Interaction) {
         : config.ttsProvider === 'cloudflare'
           ? [`• 음성 합성: \`${config.cfTtsModel}\``]
           : []),
+      config.googleTtsApiKey
+        ? `• 독일어·이탈리아어: Google \`${config.googleVoices.de}\` / \`${config.googleVoices.it}\`` +
+          (config.googleDailyCharLimit > 0
+            ? ` (오늘 ${usage.googleChars.toLocaleString()} / ${usage.googleLimit.toLocaleString()}자)`
+            : '')
+        : '• 독일어·이탈리아어: 읽지 않음 (GOOGLE_TTS_API_KEY 없음)',
     ];
     return interaction.reply({ content: lines.join('\n'), flags: MessageFlags.Ephemeral });
   }
