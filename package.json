@@ -29,5 +29,8 @@
   "devDependencies": {
     "@types/node": "^24.19.1",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "tar": "^7.5.22"
   }
 }
