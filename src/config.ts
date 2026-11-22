@@ -49,10 +49,10 @@ if (process.env.CF_ACCOUNT_ID || process.env.CF_API_TOKEN || process.env.CF_TTS_
 }
 
 // Primary TTS provider:
-//   "local"  — Supertonic 3 on the local LLM-8850 card server (LOCAL_TTS_URL); falls back to
+//   "local"  : Supertonic 3 on the local LLM-8850 card server (LOCAL_TTS_URL); falls back to
 //              Gemini (if BAZE_API_KEY) and then Google (if GOOGLE_TTS_API_KEY) when the server is down
-//   "baze"   — Gemini, falls back to Google
-//   "google" — Google Cloud TTS only
+//   "baze"   : Gemini, falls back to Google
+//   "google" : Google Cloud TTS only
 // German and Italian go to Google before Gemini (Google's free tier is cheaper than Gemini credits).
 // Default: local when LOCAL_TTS_URL is set, else baze when a key is set, else google.
 // "cloudflare" (the old MeloTTS-only mode) is read as "google" so an existing .env keeps working.
@@ -60,7 +60,7 @@ function ttsProvider(): TtsProvider {
   const fallback = localTtsUrl ? 'local' : bazeApiKey ? 'baze' : 'google';
   let requested = optional('TTS_PROVIDER', fallback).toLowerCase();
   if (requested === 'cloudflare') {
-    console.warn('[config] TTS_PROVIDER=cloudflare (MeloTTS) was retired — using "google"');
+    console.warn('[config] TTS_PROVIDER=cloudflare (MeloTTS) was retired, using "google"');
     requested = 'google';
   }
   if (requested !== 'local' && requested !== 'baze' && requested !== 'google') {
@@ -72,7 +72,7 @@ function ttsProvider(): TtsProvider {
     process.exit(1);
   }
   if (requested === 'baze' && !bazeApiKey) {
-    console.warn('[config] TTS_PROVIDER=baze but BAZE_API_KEY is empty — using google only');
+    console.warn('[config] TTS_PROVIDER=baze but BAZE_API_KEY is empty, using google only');
   }
   const provider = requested === 'baze' && !bazeApiKey ? 'google' : requested;
   if (provider === 'google' && !googleTtsApiKey) {

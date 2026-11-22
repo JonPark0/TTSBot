@@ -104,7 +104,7 @@ function remember(key: string, value: string) {
 
 function pause(ms: number, message: string, level: 'warn' | 'error') {
   cooldownUntil = Date.now() + ms;
-  logger[level](`[normalize] ${message} — reading text unchanged for ${ms >= AUTH_COOLDOWN_MS ? '30 min' : '60 s'}`);
+  logger[level](`[normalize] ${message}, reading text unchanged for ${ms >= AUTH_COOLDOWN_MS ? '30 min' : '60 s'}`);
 }
 
 function onError(err: unknown) {
@@ -134,7 +134,7 @@ export async function normalizeForTts(text: string, lang: string): Promise<strin
     const today = new Date().toISOString().slice(0, 10);
     if (budgetWarnedDate !== today) {
       budgetWarnedDate = today;
-      logger.warn(`[normalize] daily budget ($${config.normalizeDailyUsd}) reached — reading text unchanged until 00:00 UTC`);
+      logger.warn(`[normalize] daily budget ($${config.normalizeDailyUsd}) reached, reading text unchanged until 00:00 UTC`);
     }
   }
   if (state !== 'on') return text;
@@ -165,7 +165,7 @@ export async function normalizeForTts(text: string, lang: string): Promise<strin
 
     if (response.stop_reason !== 'end_turn') {
       // refusal / max_tokens: only this message falls back, no pause.
-      logger.debug(`[normalize] stop_reason=${response.stop_reason} — reading text unchanged`);
+      logger.debug(`[normalize] stop_reason=${response.stop_reason}, reading text unchanged`);
       return text;
     }
     const block = response.content.find((b) => b.type === 'text');
@@ -176,7 +176,7 @@ export async function normalizeForTts(text: string, lang: string): Promise<strin
       rewritten = undefined;
     }
     if (typeof rewritten !== 'string' || !acceptRewrite(text, rewritten)) {
-      logger.debug(`[normalize] rejected reply ${JSON.stringify(rewritten)} — reading text unchanged`);
+      logger.debug(`[normalize] rejected reply ${JSON.stringify(rewritten)}, reading text unchanged`);
       return text;
     }
     const result = rewritten.trim();
@@ -195,7 +195,7 @@ export async function normalizeForTts(text: string, lang: string): Promise<strin
  */
 export async function probeNormalizer(): Promise<void> {
   if (normalizeState() === 'disabled') {
-    logger.info('[normalize] off (no ANTHROPIC_API_KEY or TTS_NORMALIZE=false) — text is read as written');
+    logger.info('[normalize] off (no ANTHROPIC_API_KEY or TTS_NORMALIZE=false), text is read as written');
     return;
   }
   try {

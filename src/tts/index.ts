@@ -65,7 +65,7 @@ function onBazeFailure(err: BazeError) {
   const auth = err.status === 401 || err.status === 403;
   bazeCooldownUntil = Date.now() + (auth ? AUTH_COOLDOWN_MS : TRANSIENT_COOLDOWN_MS);
   const pause = auth ? '30 min' : '60 s';
-  const message = `[tts] Gemini TTS failed (${err.message}) — using the fallback, retrying Gemini in ${pause}`;
+  const message = `[tts] Gemini TTS failed (${err.message}), using the fallback, retrying Gemini in ${pause}`;
   if (auth) logger.error(`${message}. Check BAZE_API_KEY / BAZE_TTS_MODEL.`);
   else logger.warn(message);
 }
@@ -77,7 +77,7 @@ function onLocalFailure(err: LocalError) {
   }
   const config4xx = err.kind === 'config';
   localCooldownUntil = Date.now() + (config4xx ? AUTH_COOLDOWN_MS : LOCAL_DOWN_COOLDOWN_MS);
-  const message = `[tts] local TTS failed (${err.message}) — using the fallback, retrying local in ${config4xx ? '30 min' : '30 s'}`;
+  const message = `[tts] local TTS failed (${err.message}), using the fallback, retrying local in ${config4xx ? '30 min' : '30 s'}`;
   if (config4xx) logger.error(`${message}. Check LOCAL_TTS_TOKEN (server TTS_SERVER_TOKEN) and LOCAL_TTS_VOICE.`);
   else logger.warn(message);
 }
@@ -158,7 +158,7 @@ export async function synthesize(
     if (budgetWarnedDate !== today) {
       budgetWarnedDate = today;
       logger.warn(
-        `[tts] Gemini daily credit budget (${config.bazeDailyCreditLimit}) reached — using the fallback until 00:00 UTC`,
+        `[tts] Gemini daily credit budget (${config.bazeDailyCreditLimit}) reached, using the fallback until 00:00 UTC`,
       );
     }
   }

@@ -40,7 +40,7 @@
    - bot permissions: `View Channels`, `Connect`, `Speak`
    - 생성된 URL로 봇을 서버에 초대
 
-### 2. (선택) Gemini TTS — BAZE API Gateway
+### 2. (선택) Gemini TTS: BAZE API Gateway
 
 1. BAZE → **API Gateway** (왼쪽 아래 사이드바)에서 키 발급 → `BAZE_API_KEY`
    (키는 발급 시 한 번만 표시됩니다. 사용량은 키를 발급한 계정의 크레딧에서 차감됩니다.)
@@ -54,7 +54,7 @@
    **Cloud Text-to-Speech API** 하나로 제한 → `GOOGLE_TTS_API_KEY`
 3. 키가 없으면 백업이 없어, 앞의 TTS가 실패한 메시지와 (Gemini가 없을 때) 독일어·이탈리아어 메시지는 읽지 않습니다.
 
-### 4. (선택) 읽기 전 정규화 — Claude (Anthropic API)
+### 4. (선택) 읽기 전 정규화: Claude (Anthropic API)
 
 1. https://platform.claude.com → **API keys** 에서 키 발급 → `ANTHROPIC_API_KEY`
 2. Console에서 워크스페이스 지출 한도를 걸어 두면 봇의 `TTS_NORMALIZE_DAILY_USD` 와 함께 이중으로 막을 수 있습니다.
