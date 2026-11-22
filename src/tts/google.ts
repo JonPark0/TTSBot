@@ -1,7 +1,7 @@
 import { config } from '../config.ts';
 
-// Google Cloud Text-to-Speech (POST /v1/text:synthesize), used for the languages MeloTTS has no
-// voice for: German and Italian (googleVoices in config.ts).
+// Google Cloud Text-to-Speech (POST /v1/text:synthesize): first choice for German and Italian, and
+// the last fallback for every other language (googleVoices in config.ts).
 // Docs: https://cloud.google.com/text-to-speech/docs/reference/rest/v1/text/synthesize
 // LINEAR16 comes back as a complete WAV (24 kHz mono 16-bit for Chirp 3 HD), base64 in JSON.
 // The key goes in a header, not the URL, so it never shows up in an error message.
@@ -24,13 +24,13 @@ function languageCode(voice: string): string {
   return voice.split('-').slice(0, 2).join('-');
 }
 
-/** True when Google speaks `lang` (a detector code: de / it) and has a key. */
+/** True when Google has a voice for `lang` (a detector code) and a key is set. */
 export function googleSpeaks(lang: string): boolean {
   return Boolean(config.googleTtsApiKey && config.googleVoices[lang]);
 }
 
 /**
- * Synthesize `text` in `lang` with that language's Google voice (GOOGLE_TTS_VOICE_DE / _IT).
+ * Synthesize `text` in `lang` with that language's Google voice (GOOGLE_TTS_VOICE_*).
  * Returns a WAV Buffer. Throws GoogleError on any failure.
  */
 export async function synthesizeGoogle(text: string, lang: string): Promise<Buffer> {

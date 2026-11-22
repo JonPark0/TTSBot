@@ -2,7 +2,7 @@
 
 M5Stack LLM-8850(Axera AX8850 NPU) 카드에서 [Supertonic 3](https://huggingface.co/Supertone/supertonic-3)를 돌리는
 HTTP 서버입니다. 봇은 `TTS_PROVIDER=local`일 때 이 서버를 먼저 부르고, 서버가 죽어 있거나 말할 수 없는 언어(중국어)일 때만
-Gemini나 MeloTTS로 넘어갑니다.
+Gemini나 Google로 넘어갑니다.
 
 - 한국어, 일본어, 영어. 목소리 10종(F1–F5 여성, M1–M5 남성), 목소리 복제는 없음.
 - 카드 기준으로 약 6.7초까지의 메시지는 0.18초, 약 13초까지는 긴 버킷으로 0.35초에 한 번에 만듭니다.

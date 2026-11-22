@@ -4,7 +4,7 @@ import { setTestEnv, installFetch, fakePcm, type FetchState } from './helpers.ts
 
 setTestEnv({ BAZE_API_KEY: 'baze-test-key', BAZE_TTS_VOICE: 'Puck' });
 const { pcmToWav, creditsFor, synthesizeBaze, BazeError } = await import('../src/tts/baze.ts');
-const { sniff } = await import('../src/tts/cloudflare.ts');
+const { sniff } = await import('../src/tts/audio.ts');
 
 test('pcmToWav writes a 24 kHz mono 16-bit header that sniff() recognises', () => {
   const pcm = fakePcm(0.5);

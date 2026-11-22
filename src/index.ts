@@ -4,6 +4,7 @@ import { logger } from './logger.ts';
 import { initStore, flushStore, getTtsChannel, canSpend } from './store.ts';
 import { sanitize } from './text/sanitize.ts';
 import { detectLang } from './text/langDetect.ts';
+import { probeNormalizer } from './text/normalize.ts';
 import { getGuildVoice, destroyAll } from './voice/voiceManager.ts';
 import { registerForGuild, clearGlobalCommands, handleInteraction } from './commands.ts';
 
@@ -128,4 +129,5 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 await initStore();
+await probeNormalizer(); // never throws: problems are logged and the rewrite is skipped
 await client.login(config.discordToken);

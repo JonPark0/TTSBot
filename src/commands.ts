@@ -11,6 +11,7 @@ import {
 } from 'discord.js';
 import { config } from './config.ts';
 import { getTtsChannel, setTtsChannel, clearTtsChannel, usageInfo } from './store.ts';
+import { normalizeState } from './text/normalize.ts';
 
 const TEXT_CHANNEL_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement] as const;
 
@@ -103,30 +104,43 @@ export async function handleInteraction(interaction: Interaction) {
       config.dailyCharLimit > 0
         ? `• 오늘 사용량(UTC): ${usage.chars.toLocaleString()} / ${usage.limit.toLocaleString()}자`
         : '• 일일 사용량 제한: 없음',
-      ...(config.ttsProvider === 'local'
+      `• 음성 합성: ${providerChain()}`,
+      ...(config.bazeApiKey && config.ttsProvider !== 'google'
         ? [
-            `• 음성 합성: LLM-8850 카드의 Supertonic 3 (${config.localTtsUrl}, 목소리 ${config.localTtsVoice || '서버 기본'})` +
-              (config.bazeApiKey ? ` → 실패 시 Gemini \`${config.bazeTtsModel}\`` : '') +
-              (config.cloudflareEnabled ? ` → 실패 시 \`${config.cfTtsModel}\`` : ''),
-          ]
-        : []),
-      ...(config.ttsProvider === 'baze'
-        ? [
-            `• 음성 합성: Gemini \`${config.bazeTtsModel}\` (목소리 ${config.bazeTtsVoice}) → 실패 시 \`${config.cfTtsModel}\``,
             config.bazeDailyCreditLimit > 0
               ? `• 오늘 Gemini 크레딧(UTC): ${usage.credits.toFixed(1)} / ${usage.creditLimit.toLocaleString()}`
               : `• 오늘 Gemini 크레딧(UTC): ${usage.credits.toFixed(1)} (제한 없음)`,
           ]
-        : config.ttsProvider === 'cloudflare'
-          ? [`• 음성 합성: \`${config.cfTtsModel}\``]
-          : []),
+        : []),
       config.googleTtsApiKey
-        ? `• 독일어·이탈리아어: Google \`${config.googleVoices.de}\` / \`${config.googleVoices.it}\`` +
+        ? `• Google 음성: 독일어·이탈리아어 우선, 나머지 언어는 마지막 대체` +
           (config.googleDailyCharLimit > 0
             ? ` (오늘 ${usage.googleChars.toLocaleString()} / ${usage.googleLimit.toLocaleString()}자)`
             : '')
-        : '• 독일어·이탈리아어: 읽지 않음 (GOOGLE_TTS_API_KEY 없음)',
+        : '• Google 음성: 없음 (GOOGLE_TTS_API_KEY 없음, 독일어·이탈리아어는 Gemini만)',
+      `• 읽기 전 정규화(Claude): ${normalizeStatus(usage.normalizeUsd, usage.normalizeUsdLimit)}`,
     ];
     return interaction.reply({ content: lines.join('\n'), flags: MessageFlags.Ephemeral });
   }
+}
+
+function providerChain(): string {
+  const steps: string[] = [];
+  if (config.ttsProvider === 'local') {
+    steps.push(`LLM-8850 카드의 Supertonic 3 (${config.localTtsUrl}, 목소리 ${config.localTtsVoice || '서버 기본'})`);
+  }
+  if (config.bazeApiKey && config.ttsProvider !== 'google') {
+    steps.push(`Gemini \`${config.bazeTtsModel}\` (목소리 ${config.bazeTtsVoice})`);
+  }
+  if (config.googleTtsApiKey) steps.push(`Google \`${config.googleVoices.kr}\` 등`);
+  return steps.join(' → 실패 시 ');
+}
+
+function normalizeStatus(usd: number, limit: number): string {
+  const state = normalizeState();
+  if (state === 'disabled') return '꺼짐 (ANTHROPIC_API_KEY 없음 또는 TTS_NORMALIZE=false)';
+  const spent = `오늘 $${usd.toFixed(4)}` + (limit > 0 ? ` / $${limit}` : '');
+  if (state === 'cooldown') return `일시 중지 (API 오류, 원문 그대로 읽음) · ${spent}`;
+  if (state === 'budget') return `오늘 예산 소진 (원문 그대로 읽음) · ${spent}`;
+  return `\`${config.normalizeModel}\` · ${spent}`;
 }
