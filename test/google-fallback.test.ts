@@ -12,10 +12,9 @@ await initStore();
 const state: FetchState = { baze: 'ok', google: 403 };
 const calls = installFetch(state);
 
-test('a rejected Google key falls back to Gemini, not MeloTTS', async () => {
+test('a rejected Google key falls back to Gemini', async () => {
   assert.equal((await synthesize('Guten Morgen', 'de')).provider, 'baze');
   assert.equal(calls.google, 1);
-  assert.equal(calls.cloudflare, 0);
 });
 
 test('only: "google" surfaces the error instead of falling back', async () => {

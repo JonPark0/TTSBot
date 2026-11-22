@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ── Stage 1: install dependencies and compile TypeScript (needs a toolchain for @discordjs/opus) ──
-FROM node:24-bookworm-slim AS build
+FROM node:26-bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 make g++ ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -13,7 +13,7 @@ COPY src ./src
 RUN npm run build && npm prune --omit=dev
 
 # ── Stage 2: runtime (compiled JS + production dependencies only) ──
-FROM node:24-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/*

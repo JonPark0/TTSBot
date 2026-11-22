@@ -104,16 +104,8 @@ class GuildVoice {
 
       await this.#ensureConnection(voiceChannel);
 
-      // The per-language gains were measured on MeloTTS output (quiet Chinese); Gemini output
-      // already peaks near full scale and would clip if boosted, and the local server peak-normalizes
-      // its output, so both always play at 1.
-      // Inline volume costs an extra PCM transform per frame, so only enable it when needed.
-      const gain = provider === 'cloudflare' ? (config.langGain[lang] ?? 1) : 1;
-      const resource = createAudioResource(Readable.from(audio), {
-        inputType: StreamType.Arbitrary,
-        inlineVolume: gain !== 1,
-      });
-      resource.volume?.setVolume(gain);
+      // Every provider returns audio at a usable level, so there is no inline volume transform.
+      const resource = createAudioResource(Readable.from(audio), { inputType: StreamType.Arbitrary });
       this.player.play(resource);
       // The 'Idle' / 'error' handlers advance the queue from here.
     } catch (err) {

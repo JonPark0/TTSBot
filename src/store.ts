@@ -14,6 +14,7 @@ interface Usage {
   chars: number;
   credits: number;
   googleChars: number;
+  normalizeUsd: number;
 }
 
 interface State {
@@ -21,8 +22,8 @@ interface State {
   usage: Usage;
 }
 
-// usage.credits counts Gemini (BAZE) TTS credits and usage.googleChars the characters sent to
-// Google; both share the UTC-day reset with chars.
+// usage.credits counts Gemini (BAZE) TTS credits, usage.googleChars the characters sent to Google
+// and usage.normalizeUsd what Claude text normalization cost; all share the UTC-day reset with chars.
 let state: State = { guilds: {}, usage: emptyUsage() };
 let writeTimer: NodeJS.Timeout | null = null;
 let canPersist = true;
@@ -32,7 +33,7 @@ function today() {
 }
 
 function emptyUsage(date = today()): Usage {
-  return { date, chars: 0, credits: 0, googleChars: 0 };
+  return { date, chars: 0, credits: 0, googleChars: 0, normalizeUsd: 0 };
 }
 
 function rollDate() {
@@ -71,6 +72,7 @@ export async function initStore() {
               chars: Number(parsed.usage.chars) || 0,
               credits: Number(parsed.usage.credits) || 0, // absent in store.json from older versions
               googleChars: Number(parsed.usage.googleChars) || 0,
+              normalizeUsd: Number(parsed.usage.normalizeUsd) || 0,
             }
           : emptyUsage(),
     };
@@ -145,6 +147,18 @@ export function addGoogleChars(chars: number) {
   scheduleWrite();
 }
 
+export function canSpendNormalize(): boolean {
+  rollDate();
+  if (!config.normalizeDailyUsd || config.normalizeDailyUsd <= 0) return true;
+  return state.usage.normalizeUsd < config.normalizeDailyUsd;
+}
+
+export function addNormalizeUsd(usd: number) {
+  rollDate();
+  state.usage.normalizeUsd += usd;
+  scheduleWrite();
+}
+
 export function usageInfo() {
   rollDate();
   return {
@@ -155,6 +169,8 @@ export function usageInfo() {
     creditLimit: config.bazeDailyCreditLimit,
     googleChars: state.usage.googleChars,
     googleLimit: config.googleDailyCharLimit,
+    normalizeUsd: state.usage.normalizeUsd,
+    normalizeUsdLimit: config.normalizeDailyUsd,
   };
 }
 

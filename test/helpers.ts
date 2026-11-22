@@ -1,5 +1,5 @@
 // Shared setup for tests: dummy credentials, a throwaway data dir, and a fake `fetch`
-// that answers the local card server, BAZE, Google and Cloudflare endpoints without touching the network.
+// that answers the local card server, BAZE, Google and Anthropic endpoints without touching the network.
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,8 +11,7 @@ export function setTestEnv(extra: Record<string, string> = {}) {
   Object.assign(process.env, {
     DISCORD_TOKEN: 'test',
     DISCORD_CLIENT_ID: 'test',
-    CF_ACCOUNT_ID: 'acc',
-    CF_API_TOKEN: 'cf-token',
+    ANTHROPIC_API_KEY: '',
     BAZE_BASE_URL: BAZE_URL,
     DATA_DIR: mkdtempSync(path.join(tmpdir(), 'ttsbot-test-')),
     LOG_LEVEL: 'error',
@@ -33,28 +32,42 @@ function fakeWav() {
   return Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(2000)]);
 }
 
-/** A minimal WAV, base64-wrapped the way Workers AI returns MeloTTS audio. */
-function fakeMeloJson() {
-  const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(2000)]);
-  return JSON.stringify({ result: { audio: wav.toString('base64') }, success: true, errors: [] });
+/** A Messages API reply whose text block carries `json` (structured output). */
+function fakeClaude(text: string, stopReason = 'end_turn') {
+  return JSON.stringify({
+    id: 'msg_test',
+    type: 'message',
+    role: 'assistant',
+    model: 'claude-haiku-5-5',
+    content: stopReason === 'refusal' ? [] : [{ type: 'text', text }],
+    stop_reason: stopReason,
+    stop_sequence: null,
+    stop_details: null,
+    usage: { input_tokens: 1000, output_tokens: 200 },
+  });
 }
 
 export interface FetchState {
   baze: 'ok' | 'json200' | 'network' | number;
   local?: 'ok' | 'network' | 'unsupported' | 'empty' | number;
   google?: 'ok' | 'network' | number;
+  /** 'ok' answers with `anthropicText` (default: a fixed Korean rewrite). */
+  anthropic?: 'ok' | 'refusal' | 'network' | number;
+  anthropicText?: string;
 }
 
 export interface FetchCalls {
   local: number;
   localBodies: unknown[];
   baze: number;
-  cloudflare: number;
-  bazeBodies: unknown[];
+  bazeBodies: { input: string }[];
   bazeAuth?: string;
   google: number;
   googleBodies: { voice: { languageCode: string; name: string } }[];
   googleKey?: string;
+  googleTexts: string[];
+  anthropic: number;
+  anthropicBodies: { messages: { content: string }[] }[];
 }
 
 /**
@@ -63,7 +76,17 @@ export interface FetchCalls {
  * Returns a `calls` record of which endpoints were hit.
  */
 export function installFetch(state: FetchState): FetchCalls {
-  const calls: FetchCalls = { local: 0, localBodies: [], baze: 0, cloudflare: 0, bazeBodies: [], google: 0, googleBodies: [] };
+  const calls: FetchCalls = {
+    local: 0,
+    localBodies: [],
+    baze: 0,
+    bazeBodies: [],
+    google: 0,
+    googleBodies: [],
+    googleTexts: [],
+    anthropic: 0,
+    anthropicBodies: [],
+  };
   globalThis.fetch = async (url, init) => {
     if (String(url).startsWith(LOCAL_URL)) {
       calls.local++;
@@ -100,7 +123,9 @@ export function installFetch(state: FetchState): FetchCalls {
     }
     if (String(url).startsWith('https://texttospeech.googleapis.com/')) {
       calls.google++;
-      calls.googleBodies.push(JSON.parse(String(init?.body)));
+      const body = JSON.parse(String(init?.body));
+      calls.googleBodies.push(body);
+      calls.googleTexts.push(body.input.text);
       calls.googleKey = (init?.headers as Record<string, string>)['X-Goog-Api-Key'];
       const mode = state.google ?? 'ok';
       if (mode === 'network') throw new TypeError('fetch failed');
@@ -112,9 +137,20 @@ export function installFetch(state: FetchState): FetchCalls {
         headers: { 'content-type': 'application/json' },
       });
     }
-    if (String(url).includes('api.cloudflare.com')) {
-      calls.cloudflare++;
-      return new Response(fakeMeloJson(), { status: 200, headers: { 'content-type': 'application/json' } });
+    if (String(url).startsWith('https://api.anthropic.com/')) {
+      const json = { 'content-type': 'application/json' };
+      if (String(url).includes('/v1/models/')) {
+        return new Response('{"type":"model","id":"claude-haiku-5-5"}', { status: 200, headers: json });
+      }
+      calls.anthropic++;
+      calls.anthropicBodies.push(JSON.parse(String(init?.body)));
+      const mode = state.anthropic ?? 'ok';
+      if (mode === 'network') throw new TypeError('fetch failed');
+      if (typeof mode === 'number') {
+        return new Response(`{"type":"error","error":{"type":"api_error","message":"status ${mode}"}}`, { status: mode, headers: json });
+      }
+      const text = JSON.stringify({ text: state.anthropicText ?? 'ㅇㅋ 십 분 뒤에 들어갈게' });
+      return new Response(fakeClaude(text, mode === 'refusal' ? 'refusal' : 'end_turn'), { status: 200, headers: json });
     }
     throw new Error(`unexpected fetch ${url}`);
   };
