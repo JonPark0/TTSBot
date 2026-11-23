@@ -1,3 +1,6 @@
+> 최초 개발 요청 기록입니다. Cloudflare Workers AI의 `@cf/myshell-ai/melotts`는 2026-11-20에 서비스가 종료되어 제거했고,
+> 지금 구성(카드 서버, Gemini, Google Cloud TTS)은 [README.md](README.md)를 보세요.
+
 Cloudflare의 AI 서비스를 활용하여 Discord 서버에서 사용할 TTS 봇을 개발하려고 해.
 
 다음과 같은 구조로 개발을 해 줘.

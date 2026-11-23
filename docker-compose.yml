@@ -9,7 +9,7 @@ services:
     labels:
       # deployed by hand from our own builds, so Diun needn't watch it
       diun.enable: "false"
-    container_name: discord-cf-tts-bot
+    container_name: discord-tts-bot
     restart: unless-stopped
     env_file: .env
     environment:
